@@ -21,78 +21,236 @@
   <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
   [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
 
-## Description
+# Secure Document Management System
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+Hệ thống quản lý văn bản an toàn cho doanh nghiệp với tích hợp DevSecOps và PostgreSQL security.
 
-## Project setup
+## 🚀 Tính năng chính
 
+### 🔐 Bảo mật
+- **Row Level Security (RLS)** trong PostgreSQL
+- **Encryption** cho dữ liệu nhạy cảm
+- **Audit logging** toàn diện
+- **Access Control** dựa trên role và department
+- **Digital Signature** hỗ trợ
+
+### 📄 Quản lý văn bản
+- Upload và version control
+- Approval workflow
+- Full-text search với PostgreSQL
+- OCR integration
+- Watermarking và DLP
+- Tagging system
+
+### 👥 Quản lý người dùng
+- Role-based access control
+- Department management
+- User activity tracking
+- Real-time notifications
+
+### 🔍 Tìm kiếm và phân tích
+- Full-text search với PostgreSQL
+- Advanced filtering
+- Audit trail
+- Security analytics
+
+## 🛠️ Công nghệ sử dụng
+
+- **Backend**: NestJS + TypeScript
+- **Database**: PostgreSQL với Prisma ORM
+- **Security**: Row Level Security, Encryption, Audit
+- **DevSecOps**: Github Action CI/CD, SAST, DAST
+- **Search**: PostgreSQL Full-text Search
+- **Authentication**: JWT + bcrypt
+
+## 📋 Yêu cầu hệ thống
+
+- Node.js 18+
+- PostgreSQL 14+
+- Docker (tùy chọn)
+
+## 🚀 Cài đặt và chạy
+
+### 1. Clone repository
 ```bash
-$ npm install
+git clone <repository-url>
+cd datn_be
 ```
 
-## Compile and run the project
-
+### 2. Cài đặt dependencies
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm install
 ```
 
-## Run tests
-
+### 3. Cấu hình database
+Tạo file `.env` từ `config/database.env`:
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+cp config/database.env .env
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+Cập nhật thông tin kết nối PostgreSQL trong file `.env`:
+```env
+DATABASE_URL="postgresql://username:password@localhost:5432/secure_document_management?schema=public"
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### 4. Thiết lập database
+```bash
+# Tạo database và chạy migrations
+npm run db:setup
 
-## Resources
+# Hoặc từng bước:
+npm run db:generate    # Generate Prisma client
+npm run db:migrate     # Run migrations
+npm run db:seed        # Seed sample data
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+### 5. Chạy ứng dụng
+```bash
+# Development
+npm run start:dev
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+# Production
+npm run build
+npm run start:prod
+```
 
-## Support
+## 🗄️ Cấu trúc Database
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+### Core Tables
+- `users` - Quản lý người dùng
+- `roles` - Phân quyền
+- `departments` - Phòng ban
+- `documents` - Văn bản chính
+- `document_versions` - Phiên bản văn bản
+- `attachments` - File đính kèm
 
-## Stay in touch
+### Security Tables
+- `audit_logs` - Nhật ký audit
+- `digital_signatures` - Chữ ký số
+- `signature_requests` - Yêu cầu ký
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+### Support Tables
+- `tags` - Thẻ phân loại
+- `comments` - Bình luận
+- `notifications` - Thông báo
 
-## License
+## 🔐 Bảo mật PostgreSQL
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+### Row Level Security (RLS)
+- Mỗi bảng đều có RLS policies
+- Access control dựa trên role và department
+- Security level filtering
+
+### Encryption
+- PGP encryption cho dữ liệu nhạy cảm
+- Encrypted file storage
+- Secure key management
+
+### Audit Logging
+- Tự động log mọi thay đổi
+- IP address và user agent tracking
+- Immutable audit trail
+
+## 📊 API Endpoints
+
+### Authentication
+- `POST /auth/login` - Đăng nhập
+- `POST /auth/logout` - Đăng xuất
+- `POST /auth/refresh` - Refresh token
+
+### Documents
+- `GET /documents` - Danh sách văn bản
+- `POST /documents` - Tạo văn bản mới
+- `GET /documents/:id` - Chi tiết văn bản
+- `PUT /documents/:id` - Cập nhật văn bản
+- `DELETE /documents/:id` - Xóa văn bản
+
+### Users & Roles
+- `GET /users` - Danh sách người dùng
+- `POST /users` - Tạo người dùng mới
+- `GET /roles` - Danh sách vai trò
+- `GET /departments` - Danh sách phòng ban
+
+### Audit & Security
+- `GET /audit-logs` - Nhật ký audit
+- `GET /security/analytics` - Phân tích bảo mật
+
+## 🔍 Tìm kiếm Full-text
+
+```sql
+-- Tìm kiếm văn bản với PostgreSQL FTS
+SELECT * FROM documents 
+WHERE to_tsvector('simple', title || ' ' || description || ' ' || document_number) 
+@@ plainto_tsquery('simple', 'search term');
+```
+
+## 🚀 DevSecOps Pipeline
+
+### GitLab CI/CD
+```yaml
+stages:
+  - install
+  - test
+  - sast
+  - build
+  - dast
+  - deploy
+```
+
+### Security Scanning
+- **SAST**: SonarQube analysis
+- **DAST**: OWASP ZAP testing
+- **Secret scanning**: GitGuardian
+- **Dependency scanning**: npm audit
+
+## 📝 Scripts hữu ích
+
+```bash
+# Database management
+npm run db:generate    # Generate Prisma client
+npm run db:migrate     # Run migrations
+npm run db:seed        # Seed data
+npm run db:studio      # Open Prisma Studio
+npm run db:reset       # Reset database
+
+# Development
+npm run start:dev      # Start with hot reload
+npm run lint           # Run ESLint
+npm run test           # Run tests
+```
+
+## 🔐 Default Credentials
+
+Sau khi chạy seed, sử dụng các tài khoản mặc định:
+
+- **Admin**: `admin@company.com` / `admin123`
+- **Manager**: `manager@company.com` / `user123`
+- **Employee**: `employee@company.com` / `user123`
+
+## 📚 Tài liệu tham khảo
+
+- [Prisma Documentation](https://www.prisma.io/docs)
+- [PostgreSQL Security](https://www.postgresql.org/docs/current/security.html)
+- [NestJS Documentation](https://docs.nestjs.com)
+- [DevSecOps Best Practices](https://owasp.org/www-project-devsecops-guideline/)
+
+## 🤝 Đóng góp
+
+1. Fork repository
+2. Tạo feature branch
+3. Commit changes
+4. Push to branch
+5. Tạo Pull Request
+
+## 📄 License
+
+MIT License - xem file [LICENSE](LICENSE) để biết thêm chi tiết.
+
+---
+
+**Lưu ý**: Đây là hệ thống demo cho mục đích học tập. Trong môi trường production, hãy đảm bảo:
+- Thay đổi tất cả mật khẩu mặc định
+- Cấu hình SSL/TLS
+- Thiết lập backup strategy
+- Monitoring và alerting
+- Security hardening
