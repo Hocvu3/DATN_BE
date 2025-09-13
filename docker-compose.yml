@@ -1,0 +1,209 @@
+# ===== SECURE DOCUMENT MANAGEMENT SYSTEM - DOCKER COMPOSE =====
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:14-alpine
+    container_name: secure_doc_postgres
+    environment:
+      POSTGRES_DB: secure_document_management
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./certs:/etc/ssl/certs
+    ports:
+      - "5432:5432"
+    networks:
+      - secure_doc_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis for caching and sessions
+  redis:
+    image: redis:7-alpine
+    container_name: secure_doc_redis
+    command: redis-server --requirepass redis_password
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - secure_doc_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: secure_doc_app
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/secure_document_management?schema=public
+      REDIS_URL: redis://:redis_password@redis:6379
+      PORT: 3001
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      ENCRYPTION_KEY: your-32-character-encryption-key
+      BCRYPT_ROUNDS: 12
+      MAX_FILE_SIZE: 10485760
+      UPLOAD_PATH: /app/uploads
+      TEMP_PATH: /app/temp
+      POSTGRES_SSL_MODE: require
+      POSTGRES_SSL_CA: /etc/ssl/certs/ca-certificate.crt
+      AUDIT_LOG_RETENTION_DAYS: 2555
+      AUDIT_LOG_ENCRYPTION: true
+      OCR_ENABLED: true
+      OCR_LANGUAGE: vie+eng
+      FTS_ENABLED: true
+      FTS_LANGUAGE: simple
+      NOTIFICATION_RETENTION_DAYS: 90
+      REAL_TIME_NOTIFICATIONS: true
+      DIGITAL_SIGNATURE_ENABLED: true
+      SIGNATURE_EXPIRY_DAYS: 30
+      WATERMARK_ENABLED: true
+      WATERMARK_TEXT: CONFIDENTIAL
+      DLP_ENABLED: true
+      DLP_PATTERNS: '["credit_card", "ssn", "email", "phone"]'
+    volumes:
+      - app_uploads:/app/uploads
+      - app_temp:/app/temp
+      - app_logs:/app/logs
+      - ./certs:/etc/ssl/certs:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - secure_doc_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: secure_doc_nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - secure_doc_network
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  # SonarQube for SAST
+  sonarqube:
+    image: sonarqube:community
+    container_name: secure_doc_sonarqube
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://postgres:5432/sonarqube
+      SONAR_JDBC_USERNAME: postgres
+      SONAR_JDBC_PASSWORD: password
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    ports:
+      - "9000:9000"
+    networks:
+      - secure_doc_network
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  # OWASP ZAP for DAST
+  zap:
+    image: owasp/zap2docker-stable
+    container_name: secure_doc_zap
+    command: zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true -config api.key=zap-api-key
+    ports:
+      - "8080:8080"
+    networks:
+      - secure_doc_network
+    restart: unless-stopped
+
+  # Prometheus for monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: secure_doc_prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - secure_doc_network
+    restart: unless-stopped
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: secure_doc_grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "3001:3000"
+    networks:
+      - secure_doc_network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  app_uploads:
+    driver: local
+  app_temp:
+    driver: local
+  app_logs:
+    driver: local
+  nginx_logs:
+    driver: local
+  sonarqube_data:
+    driver: local
+  sonarqube_extensions:
+    driver: local
+  sonarqube_logs:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  secure_doc_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
