@@ -1,0 +1,274 @@
+# ===== SECURE DOCUMENT MANAGEMENT SYSTEM - GITHUB ACTIONS =====
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '18'
+  DATABASE_URL: postgresql://postgres:password@localhost:5432/secure_document_management_test
+
+jobs:
+  # ===== INSTALL & TEST =====
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: secure_document_management_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Run database migrations
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
+  # ===== SAST - STATIC APPLICATION SECURITY TESTING =====
+  sast:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint security analysis
+        run: npm run lint
+
+      - name: Run TypeScript security check
+        run: npx tsc --noEmit
+
+      - name: Run dependency vulnerability scan
+        run: npm audit --audit-level=moderate
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      - name: SonarQube Quality Gate
+        uses: SonarSource/sonarqube-quality-gate-action@v1.1.0
+        with:
+          scanMetadataReportFile: .scannerwork/report-task.txt
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: Run CodeQL Analysis
+        uses: github/codeql-action/init@v2
+        with:
+          languages: javascript
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+
+  # # ===== BUILD =====
+  # build:
+  #   runs-on: ubuntu-latest
+  #   needs: [test, sast]
+
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+
+  #     - name: Setup Node.js
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: ${{ env.NODE_VERSION }}
+  #         cache: 'npm'
+
+  #     - name: Install dependencies
+  #       run: npm ci
+
+  #     - name: Generate Prisma client
+  #       run: npx prisma generate
+
+  #     - name: Build application
+  #       run: npm run build
+
+  #     - name: Build Docker image
+  #       run: docker build -t secure-document-management:${{ github.sha }} .
+
+  #     - name: Log in to Docker Hub
+  #       uses: docker/login-action@v3
+  #       with:
+  #         username: ${{ secrets.DOCKER_USERNAME }}
+  #         password: ${{ secrets.DOCKER_PASSWORD }}
+
+  #     - name: Push Docker image
+  #       run: |
+  #         docker tag secure-document-management:${{ github.sha }} ${{ secrets.DOCKER_USERNAME }}/secure-document-management:${{ github.sha }}
+  #         docker tag secure-document-management:${{ github.sha }} ${{ secrets.DOCKER_USERNAME }}/secure-document-management:latest
+  #         docker push ${{ secrets.DOCKER_USERNAME }}/secure-document-management:${{ github.sha }}
+  #         docker push ${{ secrets.DOCKER_USERNAME }}/secure-document-management:latest
+
+  # # ===== DAST - DYNAMIC APPLICATION SECURITY TESTING =====
+  # dast:
+  #   runs-on: ubuntu-latest
+  #   needs: build
+
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+
+  #     - name: Start application for testing
+  #       run: |
+  #         docker run -d --name app-test -p 3000:3000 ${{ secrets.DOCKER_USERNAME }}/secure-document-management:${{ github.sha }}
+  #         sleep 30
+
+  #     - name: Run OWASP ZAP baseline scan
+  #       uses: zaproxy/action-baseline@v0.8.0
+  #       with:
+  #         target: 'http://localhost:3000'
+
+  #     - name: Run OWASP ZAP full scan
+  #       uses: zaproxy/action-full-scan@v0.8.0
+  #       with:
+  #         target: 'http://localhost:3000'
+
+  #     - name: Stop application
+  #       run: |
+  #         docker stop app-test || true
+  #         docker rm app-test || true
+
+  # # ===== DEPLOY TO STAGING =====
+  # deploy-staging:
+  #   runs-on: ubuntu-latest
+  #   needs: [build, dast]
+  #   if: github.ref == 'refs/heads/develop'
+  #   environment: staging
+
+  #   steps:
+  #     - name: Deploy to staging
+  #       uses: appleboy/ssh-action@v1.0.0
+  #       with:
+  #         host: ${{ secrets.STAGING_HOST }}
+  #         username: ${{ secrets.STAGING_USER }}
+  #         key: ${{ secrets.STAGING_SSH_KEY }}
+  #         script: |
+  #           docker pull ${{ secrets.DOCKER_USERNAME }}/secure-document-management:${{ github.sha }}
+  #           docker stop secure-doc-app || true
+  #           docker rm secure-doc-app || true
+  #           docker run -d --name secure-doc-app -p 3000:3000 --env-file .env ${{ secrets.DOCKER_USERNAME }}/secure-document-management:${{ github.sha }}
+
+  #     - name: Notify Slack - Staging
+  #       uses: 8398a7/action-slack@v3
+  #       with:
+  #         status: success
+  #         channel: '#deployments'
+  #         text: '🚀 Staging deployment completed!'
+  #       env:
+  #         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # # ===== DEPLOY TO PRODUCTION =====
+  # deploy-production:
+  #   runs-on: ubuntu-latest
+  #   needs: [build, dast]
+  #   if: github.ref == 'refs/heads/main'
+  #   environment: production
+
+  #   steps:
+  #     - name: Deploy to production
+  #       uses: appleboy/ssh-action@v1.0.0
+  #       with:
+  #         host: ${{ secrets.PROD_HOST }}
+  #         username: ${{ secrets.PROD_USER }}
+  #         key: ${{ secrets.PROD_SSH_KEY }}
+  #         script: |
+  #           docker pull ${{ secrets.DOCKER_USERNAME }}/secure-document-management:${{ github.sha }}
+  #           docker stop secure-doc-app || true
+  #           docker rm secure-doc-app || true
+  #           docker run -d --name secure-doc-app -p 3000:3000 --env-file .env ${{ secrets.DOCKER_USERNAME }}/secure-document-management:${{ github.sha }}
+
+  #     - name: Notify Slack - Production
+  #       uses: 8398a7/action-slack@v3
+  #       with:
+  #         status: success
+  #         channel: '#deployments'
+  #         text: '🎉 Production deployment completed!'
+  #       env:
+  #         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # # ===== SECURITY SCANNING =====
+  # security-scanning:
+  #   runs-on: ubuntu-latest
+  #   needs: test
+
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+
+  #     - name: Run Trivy vulnerability scanner
+  #       uses: aquasecurity/trivy-action@master
+  #       with:
+  #         image-ref: '${{ secrets.DOCKER_USERNAME }}/secure-document-management:${{ github.sha }}'
+  #         format: 'sarif'
+  #         output: 'trivy-results.sarif'
+
+  #     - name: Upload Trivy scan results to GitHub Security tab
+  #       uses: github/codeql-action/upload-sarif@v2
+  #       if: always()
+  #       with:
+  #         sarif_file: 'trivy-results.sarif'
+
+  #     - name: Run Snyk security scan
+  #       uses: snyk/actions/node@master
+  #       env:
+  #         SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+  #       with:
+  #         args: --severity-threshold=high
+
+  # # ===== NOTIFICATIONS =====
+  # notify:
+  #   runs-on: ubuntu-latest
+  #   needs: [deploy-staging, deploy-production]
+  #   if: always()
+
+  #   steps:
+  #     - name: Notify on failure
+  #       uses: 8398a7/action-slack@v3
+  #       if: failure()
+  #       with:
+  #         status: failure
+  #         channel: '#alerts'
+  #         text: '❌ Pipeline failed!'
+  #       env:
+  #         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

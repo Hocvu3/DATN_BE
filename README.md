@@ -83,9 +83,9 @@ npm install
 ```
 
 ### 3. Cấu hình database
-Tạo file `.env` từ `config/database.env`:
+Tạo file `.env`:
 ```bash
-cp config/database.env .env
+cp .env.example .env
 ```
 
 Cập nhật thông tin kết nối PostgreSQL trong file `.env`:
@@ -95,8 +95,14 @@ DATABASE_URL="postgresql://username:password@localhost:5432/secure_document_mana
 
 ### 4. Thiết lập database
 ```bash
-# Tạo database và chạy migrations
+# Xóa database nếu đã tồn tại
+dropdb secure_document_management
+
+# Tạo database và chạy migrations trước
 npm run db:setup
+
+# Sau đó mới áp security policies
+psql -U postgres -f database/init.sql
 
 # Hoặc từng bước:
 npm run db:generate    # Generate Prisma client
