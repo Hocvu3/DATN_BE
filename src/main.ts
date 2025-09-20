@@ -10,9 +10,16 @@ async function bootstrap() {
     .setTitle('DMS API Documentation')
     .setDescription('The API description')
     .setVersion('1.0')
+    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'access-token')
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+  // Apply global security requirement so all routes default to bearer auth
+  document.security = [{ 'access-token': [] }];
+  SwaggerModule.setup('api', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+    },
+  });
 
   const port = process.env.PORT ?? 3001;
   await app.listen(port);

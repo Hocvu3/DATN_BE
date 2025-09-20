@@ -20,6 +20,10 @@ model User {
   lastName          String    @map("last_name")
   isActive          Boolean   @default(true) @map("is_active")
   lastLoginAt       DateTime? @map("last_login_at")
+  // Auth tokens
+  refreshTokenHash  String?   @map("refresh_token_hash")
+  resetPasswordToken String?  @map("reset_password_token")
+  resetPasswordExpires DateTime? @map("reset_password_expires")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
@@ -49,6 +53,10 @@ model User {
   // Signature relations
   signatureRequests SignatureRequest[] @relation("SignatureRequester")
   digitalSignatures DigitalSignature[] @relation("SignatureCreator")
+  
+  // Asset relations
+  uploadedAssets    Asset[] @relation("AssetUploader")
+  avatar            Asset? @relation("UserAvatar")
   
   // Audit relations
   auditLogs         AuditLog[] @relation("AuditLogUser")
@@ -82,6 +90,7 @@ model Department {
   // Relations
   users       User[]
   documents   Document[] // Added relation to Document
+  assets      Asset[]
 
   @@map("departments")
 }
@@ -110,6 +119,7 @@ model Document {
 
   versions        DocumentVersion[]
   attachments     Attachment[]
+  assets          Asset[] @relation("DocumentAssets")
   tags            DocumentTag[]
   comments        Comment[]
   signatureRequests SignatureRequest[]
@@ -266,9 +276,37 @@ model DigitalSignature {
   @@map("digital_signatures")
 }
 
+// ===== ASSET MANAGEMENT =====
+model Asset {
+  id                String    @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  filename          String
+  s3Url             String    @map("s3_url")
+  contentType       String?   @map("content_type")
+  sizeBytes         BigInt?   @map("size_bytes")
+  isCover           Boolean   @default(false) @map("is_cover")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  ownerDocumentId   String?   @map("owner_document_id")
+  ownerDocument     Document? @relation("DocumentAssets", fields: [ownerDocumentId], references: [id], onDelete: Cascade)
+  
+  uploadedById      String?   @map("uploaded_by")
+  uploadedBy        User?     @relation("AssetUploader", fields: [uploadedById], references: [id])
+  
+  departmentId      String?   @map("department_id")
+  department        Department? @relation(fields: [departmentId], references: [id])
+  
+  // User avatar relation
+  userAvatarId      String?   @unique @map("user_avatar_id")
+  userAvatar        User?     @relation("UserAvatar", fields: [userAvatarId], references: [id])
+
+  @@map("assets")
+}
+
 // ===== AUDIT SYSTEM =====
 model AuditLog {
-  id          String        @id @default(cuid())
+  // cspell:disable-next-line
+  id          String        @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
   action      String        // CREATE, READ, UPDATE, DELETE, APPROVE, SIGN, etc.
   resource    String        // Document, User, Role, etc.
   resourceId  String        @map("resource_id") // ID of the affected resource

@@ -23,6 +23,9 @@ CREATE TABLE "public"."users" (
     "last_name" TEXT NOT NULL,
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "last_login_at" TIMESTAMP(3),
+    "refresh_token_hash" TEXT,
+    "reset_password_token" TEXT,
+    "reset_password_expires" TIMESTAMP(3),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
     "role_id" TEXT NOT NULL,
@@ -69,6 +72,7 @@ CREATE TABLE "public"."documents" (
     "updated_at" TIMESTAMP(3) NOT NULL,
     "creator_id" TEXT NOT NULL,
     "approver_id" TEXT,
+    "department_id" TEXT,
 
     CONSTRAINT "documents_pkey" PRIMARY KEY ("id")
 );
@@ -236,6 +240,9 @@ ALTER TABLE "public"."documents" ADD CONSTRAINT "documents_creator_id_fkey" FORE
 
 -- AddForeignKey
 ALTER TABLE "public"."documents" ADD CONSTRAINT "documents_approver_id_fkey" FOREIGN KEY ("approver_id") REFERENCES "public"."users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."documents" ADD CONSTRAINT "documents_department_id_fkey" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."document_versions" ADD CONSTRAINT "document_versions_document_id_fkey" FOREIGN KEY ("document_id") REFERENCES "public"."documents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
