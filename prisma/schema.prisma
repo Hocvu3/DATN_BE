@@ -24,6 +24,13 @@ model User {
   refreshTokenHash  String?   @map("refresh_token_hash")
   resetPasswordToken String?  @map("reset_password_token")
   resetPasswordExpires DateTime? @map("reset_password_expires")
+  
+  // Invitation system
+  invitationToken   String?   @unique @map("invitation_token")
+  invitationExpires DateTime? @map("invitation_expires")
+  invitedBy         String?   @map("invited_by")
+  invitedAt         DateTime? @map("invited_at")
+  
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
@@ -33,6 +40,10 @@ model User {
   
   departmentId      String?   @map("department_id")
   department        Department? @relation(fields: [departmentId], references: [id])
+  
+  // Invitation relations
+  invitedByUser     User?     @relation("UserInvitation", fields: [invitedBy], references: [id])
+  invitedUsers      User[]    @relation("UserInvitation")
   
   // Document relations
   createdDocuments  Document[] @relation("DocumentCreator")

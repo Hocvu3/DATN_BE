@@ -158,4 +158,5 @@ export class UsersController {
       throw new BadRequestException(errorMessage);
     }
   }
+
 }

@@ -1,5 +1,14 @@
 {
-  "eslint.enable": false,
-  "eslint.lintOnSave": false,
-  "eslint.validate": []
+  "eslint.enable": true,
+  "eslint.lintOnSave": true,
+  "eslint.validate": ["javascript", "typescript"],
+  "eslint.options": {
+    "rules": {
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-return": "off",
+      "@typescript-eslint/no-unsafe-argument": "off"
+    }
+  }
 }
