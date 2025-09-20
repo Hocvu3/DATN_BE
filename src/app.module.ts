@@ -5,6 +5,7 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { DocumentsModule } from './documents/documents.module';
 import { S3Module } from './s3/s3.module';
 
 @Module({
@@ -30,6 +31,7 @@ import { S3Module } from './s3/s3.module';
     PrismaModule,
     AuthModule,
     UsersModule,
+    DocumentsModule,
     S3Module,
   ],
   controllers: [],
