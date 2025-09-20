@@ -324,4 +324,295 @@ export class UsersService {
     });
   }
 
+  // ===== USER MANAGEMENT CRUD =====
+  async createUser(data: {
+    email: string;
+    username: string;
+    firstName: string;
+    lastName: string;
+    password: string;
+    roleId: string;
+    departmentId?: string;
+    isActive?: boolean;
+  }): Promise<UserEntity> {
+    // Check if email already exists
+    const existingUser = await this.findByEmail(data.email);
+    if (existingUser) {
+      throw new ConflictException('User with this email already exists');
+    }
+
+    // Check if username is taken
+    const existingUsername = await this.prisma.user.findUnique({
+      where: { username: data.username },
+    });
+    if (existingUsername) {
+      throw new ConflictException('Username is already taken');
+    }
+
+    // Check if role exists
+    const role = await this.prisma.role.findUnique({
+      where: { id: data.roleId },
+    });
+    if (!role) {
+      throw new BadRequestException('Invalid role ID');
+    }
+
+    // Check if department exists (if provided)
+    if (data.departmentId) {
+      const department = await this.prisma.department.findUnique({
+        where: { id: data.departmentId },
+      });
+      if (!department) {
+        throw new BadRequestException('Invalid department ID');
+      }
+    }
+
+    // Hash password
+    const passwordHash = await bcrypt.hash(data.password, 12);
+
+    // Create user
+    const user = await this.prisma.user.create({
+      data: {
+        email: data.email,
+        username: data.username,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        passwordHash,
+        roleId: data.roleId,
+        departmentId: data.departmentId,
+        isActive: data.isActive ?? true,
+      },
+      include: { role: true, department: true },
+    });
+
+    this.logger.log(`User created: ${data.email}`);
+    return user;
+  }
+
+  async getUsers(query: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    role?: string;
+    department?: string;
+    isActive?: boolean;
+  }): Promise<{
+    users: UserEntity[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    // Debug logging
+    this.logger.log(`getUsers called with query:`, JSON.stringify(query, null, 2));
+    
+    // Ensure page and limit are proper numbers
+    const page = Number(query.page) || 1;
+    const limit = Number(query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Build where clause
+    const where: any = {};
+
+    if (query.search) {
+      where.OR = [
+        { firstName: { contains: query.search, mode: 'insensitive' } },
+        { lastName: { contains: query.search, mode: 'insensitive' } },
+        { email: { contains: query.search, mode: 'insensitive' } },
+        { username: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
+
+    if (query.role) {
+      where.role = { name: { equals: query.role, mode: 'insensitive' } };
+    }
+
+    if (query.department) {
+      where.department = { name: { equals: query.department, mode: 'insensitive' } };
+    }
+
+    if (query.isActive !== undefined) {
+      // Handle both string and boolean values
+      let isActiveValue: boolean;
+      if (typeof query.isActive === 'string') {
+        isActiveValue = query.isActive === 'true';
+      } else {
+        isActiveValue = Boolean(query.isActive);
+      }
+      where.isActive = isActiveValue;
+      this.logger.log(`Filtering by isActive: ${query.isActive} (${typeof query.isActive}) -> ${where.isActive}`);
+    }
+
+    // Debug final where clause
+    this.logger.log(`Final where clause:`, JSON.stringify(where, null, 2));
+
+    // Get users with pagination
+    const [users, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        include: { role: true, department: true },
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      users,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
+  }
+
+  async getUserById(id: string): Promise<UserEntity> {
+    const user = await this.findById(id);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return user;
+  }
+
+  async updateUser(
+    id: string,
+    data: {
+      email?: string;
+      username?: string;
+      firstName?: string;
+      lastName?: string;
+      roleId?: string;
+      departmentId?: string;
+      isActive?: boolean;
+    },
+  ): Promise<UserEntity> {
+    // Check if user exists
+    const existingUser = await this.findById(id);
+    if (!existingUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Check if email is already taken by another user
+    if (data.email && data.email !== existingUser.email) {
+      const emailUser = await this.findByEmail(data.email);
+      if (emailUser) {
+        throw new ConflictException('Email is already taken');
+      }
+    }
+
+    // Check if username is already taken by another user
+    if (data.username && data.username !== existingUser.username) {
+      const usernameUser = await this.prisma.user.findUnique({
+        where: { username: data.username },
+      });
+      if (usernameUser) {
+        throw new ConflictException('Username is already taken');
+      }
+    }
+
+    // Check if role exists
+    if (data.roleId) {
+      const role = await this.prisma.role.findUnique({
+        where: { id: data.roleId },
+      });
+      if (!role) {
+        throw new BadRequestException('Invalid role ID');
+      }
+    }
+
+    // Check if department exists (if provided)
+    if (data.departmentId) {
+      const department = await this.prisma.department.findUnique({
+        where: { id: data.departmentId },
+      });
+      if (!department) {
+        throw new BadRequestException('Invalid department ID');
+      }
+    }
+
+    // Update user
+    const updatedUser = await this.prisma.user.update({
+      where: { id },
+      data,
+      include: { role: true, department: true },
+    });
+
+    this.logger.log(`User updated: ${updatedUser.email}`);
+    return updatedUser;
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    // Check if user exists
+    const user = await this.findById(id);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Check if user has any related data that would prevent deletion
+    const [documentsCount, commentsCount] = await Promise.all([
+      this.prisma.document.count({ where: { creatorId: id } }),
+      this.prisma.comment.count({ where: { authorId: id } }),
+    ]);
+
+    if (documentsCount > 0 || commentsCount > 0) {
+      throw new BadRequestException('Cannot delete user with existing documents or comments. Consider deactivating instead.');
+    }
+
+    // Delete user
+    await this.prisma.user.delete({
+      where: { id },
+    });
+
+    this.logger.log(`User deleted: ${user.email}`);
+  }
+
+  async deactivateUser(id: string): Promise<UserEntity> {
+    const user = await this.findById(id);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id },
+      data: { isActive: false },
+      include: { role: true, department: true },
+    });
+
+    this.logger.log(`User deactivated: ${user.email}`);
+    return updatedUser;
+  }
+
+  async activateUser(id: string): Promise<UserEntity> {
+    const user = await this.findById(id);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id },
+      data: { isActive: true },
+      include: { role: true, department: true },
+    });
+
+    this.logger.log(`User activated: ${user.email}`);
+    return updatedUser;
+  }
+
+  // ===== HELPER METHODS =====
+  async getRoles() {
+    return this.prisma.role.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, description: true },
+    });
+  }
+
+  async getDepartments() {
+    return this.prisma.department.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, description: true },
+    });
+  }
 }
