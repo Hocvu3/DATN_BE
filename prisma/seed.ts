@@ -548,51 +548,6 @@ async function main(): Promise<void> {
     }),
   ]);
 
-  // Create attachments
-  console.log('📎 Creating attachments...');
-  await Promise.all([
-    prisma.attachment.create({
-      data: {
-        fileName: 'security_guidelines.pdf',
-        originalName: 'Security Guidelines.pdf',
-        filePath: '/uploads/attachments/security_guidelines.pdf',
-        fileSize: 1024000,
-        checksum: 'mno345pqr678stu901',
-        mimeType: 'application/pdf',
-        isEncrypted: true,
-        encryptionKey: 'enc_key_004',
-        documentId: documents[0].id,
-        uploaderId: adminUser.id,
-      },
-    }),
-    prisma.attachment.create({
-      data: {
-        fileName: 'employee_contract_template.docx',
-        originalName: 'Employee Contract Template.docx',
-        filePath: '/uploads/attachments/employee_contract_template.docx',
-        fileSize: 256000,
-        checksum: 'pqr678stu901vwx234',
-        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        isEncrypted: false,
-        documentId: documents[1].id,
-        uploaderId: hrManager.id,
-      },
-    }),
-    prisma.attachment.create({
-      data: {
-        fileName: 'financial_data_backup.xlsx',
-        originalName: 'Financial Data Backup.xlsx',
-        filePath: '/uploads/attachments/financial_data_backup.xlsx',
-        fileSize: 768000,
-        checksum: 'stu901vwx234yza567',
-        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        isEncrypted: true,
-        encryptionKey: 'enc_key_005',
-        documentId: documents[2].id,
-        uploaderId: financeEmp1.id,
-      },
-    }),
-  ]);
 
   // Create comments
   console.log('💬 Creating comments...');
@@ -812,7 +767,6 @@ async function main(): Promise<void> {
   console.log(`   - Tags: ${await prisma.tag.count()}`);
   console.log(`   - Documents: ${await prisma.document.count()}`);
   console.log(`   - Document Versions: ${await prisma.documentVersion.count()}`);
-  console.log(`   - Attachments: ${await prisma.attachment.count()}`);
   console.log(`   - Comments: ${await prisma.comment.count()}`);
   console.log(`   - Signature Requests: ${await prisma.signatureRequest.count()}`);
   console.log(`   - Digital Signatures: ${await prisma.digitalSignature.count()}`);

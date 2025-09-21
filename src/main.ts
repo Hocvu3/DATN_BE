@@ -16,9 +16,19 @@ async function bootstrap() {
   // Swagger config
   const config = new DocumentBuilder()
     .setTitle('DMS API Documentation')
-    .setDescription('The API description')
+    .setDescription('Document Management System API with PostgreSQL Security')
     .setVersion('1.0')
-    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'access-token')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'Authorization',
+        description: 'Enter JWT token',
+        in: 'header',
+      },
+      'access-token',
+    )
     .build();
   const document = SwaggerModule.createDocument(app, config);
   // Apply global security requirement so all routes default to bearer auth
@@ -26,6 +36,11 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document, {
     swaggerOptions: {
       persistAuthorization: true,
+      defaultModelsExpandDepth: -1,
+      defaultModelExpandDepth: 3,
+      docExpansion: 'none',
+      filter: true,
+      showRequestDuration: true,
     },
   });
 

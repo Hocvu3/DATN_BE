@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { DocumentsModule } from './documents/documents.module';
 import { S3Module } from './s3/s3.module';
+import { TagsModule } from './tags/tags.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { S3Module } from './s3/s3.module';
     UsersModule,
     DocumentsModule,
     S3Module,
+    TagsModule,
   ],
   controllers: [],
   providers: [],

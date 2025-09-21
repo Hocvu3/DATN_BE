@@ -81,11 +81,6 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
             versionNumber: 'desc',
           },
         },
-        attachments: {
-          include: {
-            uploader: true,
-          },
-        },
         tags: {
           include: {
             tag: true,
@@ -172,7 +167,6 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         _count: {
           select: {
             versions: true,
-            attachments: true,
             comments: true,
           },
         },
@@ -220,7 +214,6 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         creator: true,
         approver: true,
         versions: true,
-        attachments: true,
         tags: true,
         comments: true,
         signatureRequests: true,

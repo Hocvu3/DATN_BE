@@ -43,7 +43,6 @@ export class UsersService {
           include: {
             tags: { include: { tag: true } },
             versions: true,
-            attachments: true,
             assets: true,
             comments: {
               include: {
@@ -58,7 +57,6 @@ export class UsersService {
           include: {
             tags: { include: { tag: true } },
             versions: true,
-            attachments: true,
             assets: true,
             comments: {
               include: {
@@ -70,16 +68,6 @@ export class UsersService {
           },
         },
         createdVersions: {
-          include: {
-            document: {
-              include: {
-                tags: { include: { tag: true } },
-                creator: { select: { id: true, email: true, firstName: true, lastName: true } },
-              },
-            },
-          },
-        },
-        uploadedAttachments: {
           include: {
             document: {
               include: {
