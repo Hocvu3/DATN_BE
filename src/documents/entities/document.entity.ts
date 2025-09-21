@@ -1,11 +1,10 @@
-import type { Document, DocumentVersion, Attachment, Asset, Tag, Comment, SignatureRequest, DigitalSignature, User, Department } from '@prisma/client';
+import type { Document, DocumentVersion, Asset, Tag, Comment, SignatureRequest, DigitalSignature, User, Department } from '@prisma/client';
 
 export interface DocumentEntity extends Document {
   creator: User;
   approver?: User | null;
   department?: Department | null;
   versions: DocumentVersion[];
-  attachments: Attachment[];
   assets: Asset[];
   tags: Array<{
     id: string;
@@ -50,10 +49,6 @@ export interface DocumentVersionEntity extends DocumentVersion {
   creator: User;
 }
 
-export interface DocumentAttachmentEntity extends Attachment {
-  document: Document;
-  uploader: User;
-}
 
 export interface DocumentAssetEntity extends Asset {
   ownerDocument?: Document | null;

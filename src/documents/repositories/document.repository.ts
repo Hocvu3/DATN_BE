@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import type { DocumentEntity, DocumentVersionEntity, DocumentAttachmentEntity, DocumentAssetEntity, DocumentCommentEntity } from '../entities/document.entity';
-import type { Document, DocumentVersion, Attachment, Asset, Comment, Prisma } from '@prisma/client';
+import type { DocumentEntity, DocumentVersionEntity, DocumentAssetEntity, DocumentCommentEntity } from '../entities/document.entity';
+import type { Document, DocumentVersion, Asset, Comment, Prisma } from '@prisma/client';
 
 @Injectable()
 export class DocumentRepository {
@@ -16,7 +16,6 @@ export class DocumentRepository {
         approver: true,
         department: true,
         versions: true,
-        attachments: true,
         assets: true,
         tags: { include: { tag: true } },
         comments: {
@@ -38,7 +37,6 @@ export class DocumentRepository {
         approver: true,
         department: true,
         versions: true,
-        attachments: true,
         assets: true,
         tags: { include: { tag: true } },
         comments: {
@@ -70,7 +68,6 @@ export class DocumentRepository {
         approver: true,
         department: true,
         versions: true,
-        attachments: true,
         assets: true,
         tags: { include: { tag: true } },
         comments: {
@@ -97,7 +94,6 @@ export class DocumentRepository {
         approver: true,
         department: true,
         versions: true,
-        attachments: true,
         assets: true,
         tags: { include: { tag: true } },
         comments: {
@@ -169,27 +165,6 @@ export class DocumentRepository {
     });
   }
 
-  // ===== DOCUMENT ATTACHMENTS =====
-  async createAttachment(data: Prisma.AttachmentCreateInput): Promise<DocumentAttachmentEntity> {
-    return this.prisma.attachment.create({
-      data,
-      include: {
-        document: true,
-        uploader: true,
-      },
-    });
-  }
-
-  async findAttachmentsByDocumentId(documentId: string): Promise<DocumentAttachmentEntity[]> {
-    return this.prisma.attachment.findMany({
-      where: { documentId },
-      include: {
-        document: true,
-        uploader: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
 
   // ===== DOCUMENT ASSETS =====
   async createAsset(data: Prisma.AssetCreateInput): Promise<DocumentAssetEntity> {

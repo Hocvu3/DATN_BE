@@ -52,9 +52,6 @@ model User {
   // Version relations
   createdVersions   DocumentVersion[] @relation("VersionCreator")
   
-  // Attachment relations
-  uploadedAttachments Attachment[] @relation("AttachmentUploader")
-  
   // Comment relations
   comments          Comment[] @relation("CommentAuthor")
   
@@ -129,7 +126,6 @@ model Document {
   department      Department? @relation(fields: [departmentId], references: [id])
 
   versions        DocumentVersion[]
-  attachments     Attachment[]
   assets          Asset[] @relation("DocumentAssets")
   tags            DocumentTag[]
   comments        Comment[]
@@ -163,27 +159,6 @@ model DocumentVersion {
   @@map("document_versions")
 }
 
-model Attachment {
-  id              String    @id @default(cuid())
-  fileName        String    @map("file_name")
-  originalName    String    @map("original_name")
-  filePath        String    @map("file_path")
-  fileSize        Int       @map("file_size")
-  checksum        String
-  mimeType        String    @map("mime_type")
-  isEncrypted     Boolean   @default(true) @map("is_encrypted")
-  encryptionKey   String?   @map("encryption_key")
-  createdAt       DateTime  @default(now()) @map("created_at")
-
-  // Relations
-  documentId      String    @map("document_id")
-  document        Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  
-  uploaderId      String    @map("uploader_id")
-  uploader        User      @relation("AttachmentUploader", fields: [uploaderId], references: [id])
-
-  @@map("attachments")
-}
 
 // ===== TAGGING SYSTEM =====
 model Tag {
