@@ -5,27 +5,38 @@ export class CreateDocumentVersionDto {
   @ApiProperty({ example: 1, description: 'Version number' })
   @IsNumber()
   @Min(1)
-  versionNumber: number;
+  versionNumber?: number;
 
-  @ApiProperty({ example: '/documents/project-requirements-v1.pdf', description: 'File path' })
+  @ApiProperty({ 
+    example: 'documents/versions/2024/01/15/project-requirements-v1.pdf', 
+    description: 'S3 object key for the version file' 
+  })
   @IsString()
   @MaxLength(500)
-  filePath: string;
+  s3Key?: string;
+
+  @ApiProperty({ 
+    example: 'https://bucket.s3.amazonaws.com/documents/versions/file.pdf', 
+    description: 'S3 URL for the version file' 
+  })
+  @IsString()
+  @MaxLength(500)
+  s3Url?: string;
 
   @ApiProperty({ example: 1024000, description: 'File size in bytes' })
   @IsNumber()
   @Min(1)
-  fileSize: number;
+  fileSize?: number;
 
   @ApiProperty({ example: 'a1b2c3d4e5f6...', description: 'File checksum for integrity verification' })
   @IsString()
   @MaxLength(128)
-  checksum: string;
+  checksum?: string;
 
   @ApiProperty({ example: 'application/pdf', description: 'MIME type' })
   @IsString()
   @MaxLength(100)
-  mimeType: string;
+  mimeType?: string;
 
   @ApiProperty({ example: true, description: 'Is file encrypted', required: false })
   @IsBoolean()

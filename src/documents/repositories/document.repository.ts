@@ -66,8 +66,8 @@ export class DocumentRepository {
       skip,
       take,
       include: {
-        creator: { select: { id: true, email: true, firstName: true, lastName: true } },
-        approver: { select: { id: true, email: true, firstName: true, lastName: true } },
+        creator: true,
+        approver: true,
         department: true,
         versions: true,
         attachments: true,
@@ -150,6 +150,25 @@ export class DocumentRepository {
     });
   }
 
+  async findVersionByNumber(documentId: string, versionNumber: number): Promise<DocumentVersionEntity | null> {
+    return this.prisma.documentVersion.findFirst({
+      where: { 
+        documentId,
+        versionNumber 
+      },
+      include: {
+        document: true,
+        creator: true,
+      },
+    });
+  }
+
+  async deleteVersion(versionId: string): Promise<void> {
+    await this.prisma.documentVersion.delete({
+      where: { id: versionId },
+    });
+  }
+
   // ===== DOCUMENT ATTACHMENTS =====
   async createAttachment(data: Prisma.AttachmentCreateInput): Promise<DocumentAttachmentEntity> {
     return this.prisma.attachment.create({
@@ -193,6 +212,23 @@ export class DocumentRepository {
         department: true,
       },
       orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findAssetById(assetId: string): Promise<DocumentAssetEntity | null> {
+    return this.prisma.asset.findUnique({
+      where: { id: assetId },
+      include: {
+        ownerDocument: true,
+        uploadedBy: true,
+        department: true,
+      },
+    });
+  }
+
+  async deleteAsset(assetId: string): Promise<void> {
+    await this.prisma.asset.delete({
+      where: { id: assetId },
     });
   }
 
@@ -261,6 +297,27 @@ export class DocumentRepository {
         document: true,
       },
       orderBy: { timestamp: 'desc' },
+    });
+  }
+
+  // ===== VALIDATION METHODS =====
+  async findUserById(id: string) {
+    return this.prisma.user.findUnique({
+      where: { id },
+      select: { 
+        id: true, 
+        email: true, 
+        firstName: true, 
+        lastName: true,
+        departmentId: true 
+      }
+    });
+  }
+
+  async findDepartmentById(id: string) {
+    return this.prisma.department.findUnique({
+      where: { id },
+      select: { id: true, name: true, description: true }
     });
   }
 

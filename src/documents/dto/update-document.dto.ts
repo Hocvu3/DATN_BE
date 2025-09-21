@@ -50,20 +50,20 @@ export class UpdateDocumentDto {
   isConfidential?: boolean;
 
   @ApiProperty({ 
-    example: 'uuid-department-id', 
+    example: 'cuid-department-id', 
     description: 'Department ID',
     required: false 
   })
-  @IsUUID()
+  @IsString()
   @IsOptional()
   departmentId?: string;
 
   @ApiProperty({ 
-    example: 'uuid-approver-id', 
+    example: 'cuid-approver-id', 
     description: 'Approver user ID',
     required: false 
   })
-  @IsUUID()
+  @IsString()
   @IsOptional()
   approverId?: string;
 

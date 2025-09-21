@@ -7,7 +7,7 @@ export class CreateDocumentDto {
   @IsString()
   @MinLength(1)
   @MaxLength(255)
-  title: string;
+  title?: string;
 
   @ApiProperty({ 
     example: 'This document outlines the requirements for the new project', 
@@ -23,7 +23,7 @@ export class CreateDocumentDto {
   @IsString()
   @MinLength(1)
   @MaxLength(50)
-  documentNumber: string;
+  documentNumber?: string;
 
   @ApiProperty({ 
     example: 'DRAFT', 
@@ -59,7 +59,7 @@ export class CreateDocumentDto {
     description: 'Department ID',
     required: false 
   })
-  @IsUUID()
+  @IsString()
   @IsOptional()
   departmentId?: string;
 
@@ -68,7 +68,7 @@ export class CreateDocumentDto {
     description: 'Approver user ID',
     required: false 
   })
-  @IsUUID()
+  @IsString()
   @IsOptional()
   approverId?: string;
 

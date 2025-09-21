@@ -1,6 +1,6 @@
 import { IsOptional, IsString, IsNumber, IsEnum, IsBoolean, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { DocumentStatus, SecurityLevel } from '@prisma/client';
 
 export class GetDocumentsQueryDto {
@@ -49,6 +49,7 @@ export class GetDocumentsQueryDto {
     if (value === 'false' || value === false) return false;
     return undefined;
   })
+  @Type(() => Boolean)
   isConfidential?: boolean;
 
   @ApiProperty({ example: 'uuid-department-id', description: 'Filter by department ID', required: false })

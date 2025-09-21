@@ -143,6 +143,8 @@ model DocumentVersion {
   id              String    @id @default(cuid())
   versionNumber   Int       @map("version_number")
   filePath        String    @map("file_path")
+  s3Key           String?   @map("s3_key") // S3 object key
+  s3Url           String?   @map("s3_url") // S3 public URL
   fileSize        Int       @map("file_size")
   checksum        String    // For integrity verification
   mimeType        String    @map("mime_type")

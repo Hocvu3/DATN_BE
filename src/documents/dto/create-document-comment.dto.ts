@@ -6,7 +6,7 @@ export class CreateDocumentCommentDto {
   @IsString()
   @MinLength(1)
   @MaxLength(2000)
-  content: string;
+  content?: string;
 
   @ApiProperty({ 
     example: false, 
