@@ -8,6 +8,7 @@ import { UsersModule } from './users/users.module';
 import { DocumentsModule } from './documents/documents.module';
 import { S3Module } from './s3/s3.module';
 import { TagsModule } from './tags/tags.module';
+import { SignaturesModule } from './signatures/signatures.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { TagsModule } from './tags/tags.module';
     DocumentsModule,
     S3Module,
     TagsModule,
+    SignaturesModule,
   ],
   controllers: [],
   providers: [],
