@@ -270,4 +270,24 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       skip: filters.offset || 0,
     });
   }
+
+  // Run a function within a transaction and set Postgres LOCAL app context for audit triggers
+  async runWithUserContext<T>(
+    context: { userId?: string | null; role?: string | null; departmentId?: string | null },
+    fn: (tx: import('@prisma/client').Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return this.$transaction(async (tx) => {
+      const { userId, role, departmentId } = context;
+      if (userId) {
+        await tx.$executeRawUnsafe(`SET LOCAL app.current_user_id = '${userId.replace(/'/g, "''")}'`);
+      }
+      if (role) {
+        await tx.$executeRawUnsafe(`SET LOCAL app.current_user_role = '${role.replace(/'/g, "''")}'`);
+      }
+      if (departmentId) {
+        await tx.$executeRawUnsafe(`SET LOCAL app.current_user_department = '${departmentId.replace(/'/g, "''")}'`);
+      }
+      return fn(tx);
+    });
+  }
 }

@@ -7,14 +7,19 @@ import type {
   SignatureStats 
 } from '../entities/signature.entity';
 import type { SignatureRequest, DigitalSignature, Prisma } from '@prisma/client';
+import type { Prisma as PrismaNS } from '@prisma/client';
 
 @Injectable()
 export class SignatureRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   // ===== SIGNATURE REQUEST CRUD OPERATIONS =====
-  async createSignatureRequest(data: Prisma.SignatureRequestCreateInput): Promise<SignatureRequestEntity> {
-    return this.prisma.signatureRequest.create({
+  async createSignatureRequest(
+    data: Prisma.SignatureRequestCreateInput,
+    tx?: PrismaNS.TransactionClient,
+  ): Promise<SignatureRequestEntity> {
+    const prisma = (tx as any) || this.prisma;
+    return prisma.signatureRequest.create({
       data,
       include: {
         document: true,
@@ -184,8 +189,13 @@ export class SignatureRepository {
     return { requests: requestsWithDetails, total };
   }
 
-  async updateSignatureRequest(id: string, data: Prisma.SignatureRequestUpdateInput): Promise<SignatureRequestEntity> {
-    return this.prisma.signatureRequest.update({
+  async updateSignatureRequest(
+    id: string,
+    data: Prisma.SignatureRequestUpdateInput,
+    tx?: PrismaNS.TransactionClient,
+  ): Promise<SignatureRequestEntity> {
+    const prisma = (tx as any) || this.prisma;
+    return prisma.signatureRequest.update({
       where: { id },
       data,
       include: {
@@ -201,15 +211,20 @@ export class SignatureRepository {
     });
   }
 
-  async deleteSignatureRequest(id: string): Promise<void> {
-    await this.prisma.signatureRequest.delete({
+  async deleteSignatureRequest(id: string, tx?: PrismaNS.TransactionClient): Promise<void> {
+    const prisma = (tx as any) || this.prisma;
+    await prisma.signatureRequest.delete({
       where: { id },
     });
   }
 
   // ===== DIGITAL SIGNATURE OPERATIONS =====
-  async createDigitalSignature(data: Prisma.DigitalSignatureCreateInput): Promise<DigitalSignatureEntity> {
-    return this.prisma.digitalSignature.create({
+  async createDigitalSignature(
+    data: Prisma.DigitalSignatureCreateInput,
+    tx?: PrismaNS.TransactionClient,
+  ): Promise<DigitalSignatureEntity> {
+    const prisma = (tx as any) || this.prisma;
+    return prisma.digitalSignature.create({
       data,
       include: {
         request: {

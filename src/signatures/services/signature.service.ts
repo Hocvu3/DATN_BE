@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { SignatureRepository } from '../repositories/signature.repository';
+import { PrismaService } from '../../prisma/prisma.service';
 import { CreateSignatureRequestDto } from '../dto/create-signature-request.dto';
 import { UpdateSignatureRequestDto } from '../dto/update-signature-request.dto';
 import { GetSignatureRequestsQueryDto } from '../dto/get-signature-requests-query.dto';
@@ -15,7 +16,10 @@ import { SignatureType, SignatureStatus, Prisma } from '@prisma/client';
 
 @Injectable()
 export class SignatureService {
-  constructor(private readonly signatureRepository: SignatureRepository) {}
+  constructor(
+    private readonly signatureRepository: SignatureRepository,
+    private readonly prisma: PrismaService,
+  ) {}
 
   // ===== SIGNATURE REQUEST OPERATIONS =====
   async createSignatureRequest(
@@ -34,12 +38,17 @@ export class SignatureService {
     // This would typically involve checking document permissions
     // For now, we'll assume the user has permission
 
-    return this.signatureRepository.createSignatureRequest({
-      document: { connect: { id: documentId } },
-      requester: { connect: { id: requesterId } },
-      signatureType: signatureType as SignatureType,
-      expiresAt: expirationDate,
-      reason,
+    return this.prisma.runWithUserContext({ userId: requesterId, role: null, departmentId: null }, async (tx) => {
+      return this.signatureRepository.createSignatureRequest(
+        {
+          document: { connect: { id: documentId } },
+          requester: { connect: { id: requesterId } },
+          signatureType: signatureType as SignatureType,
+          expiresAt: expirationDate,
+          reason,
+        },
+        tx,
+      );
     });
   }
 
@@ -177,23 +186,31 @@ export class SignatureService {
       throw new ConflictException('You have already signed this document');
     }
 
-    // Create digital signature
-    const digitalSignature = await this.signatureRepository.createDigitalSignature({
-      request: { connect: { id: requestId } },
-      signer: { connect: { id: signerId } },
-      signatureData: signDocumentDto.signatureData,
-      certificateInfo: signDocumentDto.certificateInfo as unknown as Prisma.InputJsonValue,
-      ipAddress: signDocumentDto.ipAddress,
-      userAgent: signDocumentDto.userAgent,
-    });
+    // Create digital signature within context so triggers capture current user
+    return this.prisma.runWithUserContext({ userId: signerId, role: userRole, departmentId: null }, async (tx) => {
+      const digitalSignature = await this.signatureRepository.createDigitalSignature(
+        {
+          request: { connect: { id: requestId } },
+          signer: { connect: { id: signerId } },
+          signatureData: signDocumentDto.signatureData,
+          certificateInfo: signDocumentDto.certificateInfo as unknown as Prisma.InputJsonValue,
+          ipAddress: signDocumentDto.ipAddress,
+          userAgent: signDocumentDto.userAgent,
+        },
+        tx,
+      );
 
-    // Update signature request status to SIGNED
-    await this.signatureRepository.updateSignatureRequest(requestId, {
-      status: SignatureStatus.SIGNED,
-      signedAt: new Date(),
-    });
+      await this.signatureRepository.updateSignatureRequest(
+        requestId,
+        {
+          status: SignatureStatus.SIGNED,
+          signedAt: new Date(),
+        },
+        tx,
+      );
 
-    return digitalSignature;
+      return digitalSignature;
+    });
   }
 
   async getDigitalSignatureById(id: string, userId: string, userRole: string): Promise<DigitalSignatureEntity> {

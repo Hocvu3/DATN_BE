@@ -145,38 +145,48 @@ export class UsersService {
   async setRefreshToken(userId: string, refreshToken: string): Promise<void> {
     const refreshTokenHash = await bcrypt.hash(refreshToken, 12);
     this.logger.log(`setRefreshToken: userId=${userId}, typeof=${typeof userId}`);
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { refreshTokenHash },
+    await this.prisma.runWithUserContext({ userId, role: null, departmentId: null }, async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: { refreshTokenHash },
+      });
     });
   }
 
   async clearRefreshToken(userId: string): Promise<void> {
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { refreshTokenHash: null },
+    await this.prisma.runWithUserContext({ userId, role: null, departmentId: null }, async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: { refreshTokenHash: null },
+      });
     });
   }
 
   async setPassword(userId: string, newPassword: string): Promise<void> {
     const passwordHash = await bcrypt.hash(newPassword, 12);
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { passwordHash },
+    await this.prisma.runWithUserContext({ userId, role: null, departmentId: null }, async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: { passwordHash },
+      });
     });
   }
 
   async setResetPasswordToken(userId: string, token: string, expiresAt: Date): Promise<void> {
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { resetPasswordToken: token, resetPasswordExpires: expiresAt },
+    await this.prisma.runWithUserContext({ userId, role: null, departmentId: null }, async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: { resetPasswordToken: token, resetPasswordExpires: expiresAt },
+      });
     });
   }
 
   async clearResetPasswordToken(userId: string): Promise<void> {
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { resetPasswordToken: null, resetPasswordExpires: null },
+    await this.prisma.runWithUserContext({ userId, role: null, departmentId: null }, async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: { resetPasswordToken: null, resetPasswordExpires: null },
+      });
     });
   }
 
@@ -192,9 +202,11 @@ export class UsersService {
     if (!isCurrentPasswordValid) throw new BadRequestException('Current password is incorrect');
 
     const newPasswordHash = await bcrypt.hash(newPassword, 12);
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { passwordHash: newPasswordHash },
+    await this.prisma.runWithUserContext({ userId, role: null, departmentId: null }, async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: { passwordHash: newPasswordHash },
+      });
     });
   }
 
@@ -225,10 +237,12 @@ export class UsersService {
       }
     }
 
-    const updatedUser = await this.prisma.user.update({
-      where: { id: userId },
-      data: updateData,
-      include: { role: true, department: true, avatar: true },
+    const updatedUser = await this.prisma.runWithUserContext({ userId, role: null, departmentId: null }, async (tx) => {
+      return tx.user.update({
+        where: { id: userId },
+        data: updateData,
+        include: { role: true, department: true, avatar: true },
+      });
     });
 
     return updatedUser;
@@ -236,16 +250,20 @@ export class UsersService {
 
   async updateAvatar(userId: string, assetId: string): Promise<UserEntity> {
     // First, remove current avatar
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { avatar: { disconnect: true } },
+    await this.prisma.runWithUserContext({ userId, role: null, departmentId: null }, async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: { avatar: { disconnect: true } },
+      });
     });
 
     // Set new avatar
-    const updatedUser = await this.prisma.user.update({
-      where: { id: userId },
-      data: { avatar: { connect: { id: assetId } } },
-      include: { role: true, department: true, avatar: true },
+    const updatedUser = await this.prisma.runWithUserContext({ userId, role: null, departmentId: null }, async (tx) => {
+      return tx.user.update({
+        where: { id: userId },
+        data: { avatar: { connect: { id: assetId } } },
+        include: { role: true, department: true, avatar: true },
+      });
     });
 
     return updatedUser;
@@ -277,16 +295,20 @@ export class UsersService {
       }
 
       // Delete asset record from database
-      await this.prisma.asset.delete({
-        where: { id: user.avatar.id },
+      await this.prisma.runWithUserContext({ userId, role: null, departmentId: null }, async (tx) => {
+        await tx.asset.delete({
+          where: { id: user.avatar!.id },
+        });
       });
     }
 
     // Remove avatar relation from user
-    const updatedUser = await this.prisma.user.update({
-      where: { id: userId },
-      data: { avatar: { disconnect: true } },
-      include: { role: true, department: true, avatar: true },
+    const updatedUser = await this.prisma.runWithUserContext({ userId, role: null, departmentId: null }, async (tx) => {
+      return tx.user.update({
+        where: { id: userId },
+        data: { avatar: { disconnect: true } },
+        include: { role: true, department: true, avatar: true },
+      });
     });
 
     return updatedUser;
@@ -300,15 +322,17 @@ export class UsersService {
     uploadedById: string;
     departmentId?: string;
   }): Promise<Asset> {
-    return await this.prisma.asset.create({
-      data: {
-        filename: data.filename,
-        s3Url: data.s3Url,
-        contentType: data.contentType,
-        sizeBytes: data.sizeBytes ? BigInt(data.sizeBytes) : null,
-        uploadedBy: { connect: { id: data.uploadedById } },
-        department: data.departmentId ? { connect: { id: data.departmentId } } : undefined,
-      },
+    return await this.prisma.runWithUserContext({ userId: data.uploadedById, role: null, departmentId: data.departmentId || null }, async (tx) => {
+      return tx.asset.create({
+        data: {
+          filename: data.filename,
+          s3Url: data.s3Url,
+          contentType: data.contentType,
+          sizeBytes: data.sizeBytes ? BigInt(data.sizeBytes) : null,
+          uploadedBy: { connect: { id: data.uploadedById } },
+          department: data.departmentId ? { connect: { id: data.departmentId } } : undefined,
+        },
+      });
     });
   }
 
@@ -359,18 +383,20 @@ export class UsersService {
     const passwordHash = await bcrypt.hash(data.password, 12);
 
     // Create user
-    const user = await this.prisma.user.create({
-      data: {
-        email: data.email,
-        username: data.username,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        passwordHash,
-        roleId: data.roleId,
-        departmentId: data.departmentId,
-        isActive: data.isActive ?? true,
-      },
-      include: { role: true, department: true },
+    const user = await this.prisma.runWithUserContext({ userId: undefined, role: null, departmentId: data.departmentId || null }, async (tx) => {
+      return tx.user.create({
+        data: {
+          email: data.email,
+          username: data.username,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          passwordHash,
+          roleId: data.roleId,
+          departmentId: data.departmentId,
+          isActive: data.isActive ?? true,
+        },
+        include: { role: true, department: true },
+      });
     });
 
     this.logger.log(`User created: ${data.email}`);
@@ -522,10 +548,12 @@ export class UsersService {
     }
 
     // Update user
-    const updatedUser = await this.prisma.user.update({
-      where: { id },
-      data,
-      include: { role: true, department: true },
+    const updatedUser = await this.prisma.runWithUserContext({ userId: id, role: null, departmentId: data.departmentId || null }, async (tx) => {
+      return tx.user.update({
+        where: { id },
+        data,
+        include: { role: true, department: true },
+      });
     });
 
     this.logger.log(`User updated: ${updatedUser.email}`);
@@ -550,8 +578,10 @@ export class UsersService {
     }
 
     // Delete user
-    await this.prisma.user.delete({
-      where: { id },
+    await this.prisma.runWithUserContext({ userId: id, role: null, departmentId: user.departmentId }, async (tx) => {
+      await tx.user.delete({
+        where: { id },
+      });
     });
 
     this.logger.log(`User deleted: ${user.email}`);
@@ -563,10 +593,12 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    const updatedUser = await this.prisma.user.update({
-      where: { id },
-      data: { isActive: false },
-      include: { role: true, department: true },
+    const updatedUser = await this.prisma.runWithUserContext({ userId: id, role: null, departmentId: user.departmentId }, async (tx) => {
+      return tx.user.update({
+        where: { id },
+        data: { isActive: false },
+        include: { role: true, department: true },
+      });
     });
 
     this.logger.log(`User deactivated: ${user.email}`);
@@ -579,10 +611,12 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    const updatedUser = await this.prisma.user.update({
-      where: { id },
-      data: { isActive: true },
-      include: { role: true, department: true },
+    const updatedUser = await this.prisma.runWithUserContext({ userId: id, role: null, departmentId: user.departmentId }, async (tx) => {
+      return tx.user.update({
+        where: { id },
+        data: { isActive: true },
+        include: { role: true, department: true },
+      });
     });
 
     this.logger.log(`User activated: ${user.email}`);
