@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Post, Req, UnauthorizedException, UseGuards, BadRequestException } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Req,
+  UnauthorizedException,
+  UseGuards,
+  BadRequestException,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthenticatedUser } from './types';
@@ -7,6 +16,7 @@ import { UsersService } from 'src/users/users.service';
 import { InviteUserDto } from '../users/dto/invite-user.dto';
 import { RegisterFromInvitationDto } from '../users/dto/register-from-invitation.dto';
 import { ResendInvitationDto } from '../users/dto/resend-invitation.dto';
+import { Public } from './decorators/public.decorator';
 
 // Keep DTOs if needed later; suppress unused warning for now
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -35,6 +45,7 @@ export class AuthController {
     private readonly usersService: UsersService,
   ) {}
 
+  @Public()
   @UseGuards(AuthGuard('local'))
   @Post('login')
   @ApiOperation({ summary: 'Login with email and password' })
@@ -200,14 +211,16 @@ export class AuthController {
       const result = await this.authService.validateInvitationToken(req.params.token);
       return {
         valid: result.valid,
-        user: result.user ? {
-          email: result.user.email,
-          firstName: result.user.firstName,
-          lastName: result.user.lastName,
-          username: result.user.username,
-          role: result.user.role?.name,
-          department: result.user.department?.name,
-        } : null,
+        user: result.user
+          ? {
+              email: result.user.email,
+              firstName: result.user.firstName,
+              lastName: result.user.lastName,
+              username: result.user.username,
+              role: result.user.role?.name,
+              department: result.user.department?.name,
+            }
+          : null,
       };
     } catch (error) {
       const errorMessage =
@@ -223,16 +236,16 @@ export class AuthController {
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Resend invitation to user by email (Admin/Manager only)' })
   @ApiBody({ type: ResendInvitationDto })
-  @ApiOkResponse({ 
+  @ApiOkResponse({
     description: 'Invitation resent successfully',
     schema: {
       type: 'object',
       properties: {
         message: { type: 'string', example: 'Invitation resent successfully via email' },
         email: { type: 'string', example: 'john.doe@company.com' },
-        expiresAt: { type: 'string', format: 'date-time' }
-      }
-    }
+        expiresAt: { type: 'string', format: 'date-time' },
+      },
+    },
   })
   async resendInvitation(
     @Req() req: { user: { userId: string; role: string } },
@@ -244,7 +257,10 @@ export class AuthController {
     }
 
     try {
-      const result = await this.authService.resendInvitationByEmail(resendInvitationDto.email, req.user.userId);
+      const result = await this.authService.resendInvitationByEmail(
+        resendInvitationDto.email,
+        req.user.userId,
+      );
       return {
         message: 'Invitation resent successfully via email',
         email: resendInvitationDto.email,

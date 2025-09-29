@@ -1,4 +1,11 @@
-import { Injectable, UnauthorizedException, BadRequestException, Logger, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+  Logger,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
@@ -26,11 +33,34 @@ export class AuthService {
     this.refreshExpires = process.env.JWT_REFRESH_EXPIRES ?? '7d';
   }
 
+  /**
+   * Validates user credentials
+   *
+   * @param email User email
+   * @param password User password
+   * @returns User object if valid, throws specific exceptions otherwise
+   */
   async validateUser(email: string, password: string) {
+    // Check if user exists
     const user = await this.usersService.findByEmail(email);
-    if (!user || !user.isActive) return null;
-    const ok = await this.usersService.validatePassword(password, user.passwordHash);
-    if (!ok) return null;
+    if (!user) {
+      this.logger.warn(`Login attempt with non-existent email: ${email}`);
+      throw new UnauthorizedException('User not found');
+    }
+
+    // Check if user is active
+    if (!user.isActive) {
+      this.logger.warn(`Login attempt for inactive account: ${email}`);
+      throw new UnauthorizedException('Account is inactive');
+    }
+
+    // Validate password
+    const isPasswordValid = await this.usersService.validatePassword(password, user.passwordHash);
+    if (!isPasswordValid) {
+      this.logger.warn(`Failed login attempt with incorrect password for: ${email}`);
+      throw new UnauthorizedException('Incorrect password');
+    }
+
     return user;
   }
 
@@ -269,7 +299,10 @@ export class AuthService {
     return { valid: !!user, user: user || undefined };
   }
 
-  async resendInvitation(userId: string, inviterId: string): Promise<{ invitationToken: string; expiresAt: Date }> {
+  async resendInvitation(
+    userId: string,
+    inviterId: string,
+  ): Promise<{ invitationToken: string; expiresAt: Date }> {
     const user = await this.prismaService.user.findUnique({
       where: { id: userId },
     });
@@ -304,7 +337,10 @@ export class AuthService {
     return { invitationToken, expiresAt };
   }
 
-  async resendInvitationByEmail(email: string, inviterId: string): Promise<{ invitationToken: string; expiresAt: Date }> {
+  async resendInvitationByEmail(
+    email: string,
+    inviterId: string,
+  ): Promise<{ invitationToken: string; expiresAt: Date }> {
     const user = await this.prismaService.user.findUnique({
       where: { email },
     });
@@ -340,11 +376,16 @@ export class AuthService {
   }
 
   // ===== EMAIL METHODS =====
-  private async sendInvitationEmail(email: string, token: string, customMessage?: string): Promise<void> {
+  private async sendInvitationEmail(
+    email: string,
+    token: string,
+    customMessage?: string,
+  ): Promise<void> {
     const appUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const registrationUrl = `${appUrl}/register?token=${token}&email=${encodeURIComponent(email)}`;
-    
-    const defaultMessage = 'You have been invited to join our Document Management System. Please click the link below to complete your registration.';
+
+    const defaultMessage =
+      'You have been invited to join our Document Management System. Please click the link below to complete your registration.';
     const message = customMessage || defaultMessage;
 
     try {
@@ -375,7 +416,7 @@ export class AuthService {
           </div>
         `,
       });
-      
+
       this.logger.log(`Invitation email sent to: ${email}`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
