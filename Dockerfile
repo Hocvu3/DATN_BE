@@ -40,6 +40,7 @@ COPY --from=builder --chown=nestjs:nodejs /app/package*.json ./
 COPY --from=builder --chown=nestjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nestjs:nodejs /app/database ./database
 COPY --from=builder --chown=nestjs:nodejs /app/scripts ./scripts
+COPY --from=builder --chown=nestjs:nodejs /app/healthcheck.js ./healthcheck.js
 
 # Create necessary directories and set ownership
 RUN mkdir -p /app/uploads /app/temp /app/logs && chown -R nestjs:nodejs /app/uploads /app/temp /app/logs

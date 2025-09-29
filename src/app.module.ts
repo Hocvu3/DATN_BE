@@ -9,6 +9,7 @@ import { DocumentsModule } from './documents/documents.module';
 import { S3Module } from './s3/s3.module';
 import { TagsModule } from './tags/tags.module';
 import { SignaturesModule } from './signatures/signatures.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { SignaturesModule } from './signatures/signatures.module';
     S3Module,
     TagsModule,
     SignaturesModule,
+    HealthModule,
   ],
   controllers: [],
   providers: [],

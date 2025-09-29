@@ -11,17 +11,17 @@ services:
       POSTGRES_DB: secure_document_management
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+      POSTGRES_INITDB_ARGS: '--encoding=UTF-8 --lc-collate=C --lc-ctype=C'
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./certs:/etc/ssl/certs
     ports:
-      - "5432:5432"
+      - '5432:5432'
     networks:
       - secure_doc_network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -34,12 +34,12 @@ services:
     volumes:
       - redis_data:/data
     ports:
-      - "6379:6379"
+      - '6379:6379'
     networks:
       - secure_doc_network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: ['CMD', 'redis-cli', '--raw', 'incr', 'ping']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -83,7 +83,7 @@ services:
       - app_logs:/app/logs
       - ./certs:/etc/ssl/certs:ro
     ports:
-      - "3000:3000"
+      - '3000:3000'
     networks:
       - secure_doc_network
     depends_on:
@@ -93,7 +93,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/api/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -107,8 +107,8 @@ services:
       - ./nginx/ssl:/etc/nginx/ssl:ro
       - nginx_logs:/var/log/nginx
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     networks:
       - secure_doc_network
     depends_on:
@@ -128,7 +128,7 @@ services:
       - sonarqube_extensions:/opt/sonarqube/extensions
       - sonarqube_logs:/opt/sonarqube/logs
     ports:
-      - "9000:9000"
+      - '9000:9000'
     networks:
       - secure_doc_network
     depends_on:
@@ -141,7 +141,7 @@ services:
     container_name: secure_doc_zap
     command: zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true -config api.key=zap-api-key
     ports:
-      - "8080:8080"
+      - '8080:8080'
     networks:
       - secure_doc_network
     restart: unless-stopped
@@ -154,7 +154,7 @@ services:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     ports:
-      - "9090:9090"
+      - '9090:9090'
     networks:
       - secure_doc_network
     restart: unless-stopped
@@ -170,7 +170,7 @@ services:
       - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
       - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
     ports:
-      - "3001:3000"
+      - '3001:3000'
     networks:
       - secure_doc_network
     depends_on:
