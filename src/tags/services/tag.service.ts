@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { TagRepository } from '../repositories/tag.repository';
 import { CreateTagDto } from '../dto/create-tag.dto';
 import { UpdateTagDto } from '../dto/update-tag.dto';
@@ -26,7 +31,9 @@ export class TagService {
     });
   }
 
-  async getTags(query: GetTagsQueryDto): Promise<{ tags: TagWithDocumentCount[]; total: number; page: number; limit: number }> {
+  async getTags(
+    query: GetTagsQueryDto,
+  ): Promise<{ tags: TagWithDocumentCount[]; total: number; page: number; limit: number }> {
     const { tags, total } = await this.tagRepository.findMany({
       search: query.search,
       isActive: query.isActive,
@@ -84,7 +91,7 @@ export class TagService {
     // Check if tag is being used by any documents
     if (tag.documents.length > 0) {
       throw new ConflictException(
-        `Cannot delete tag '${tag.name}' because it is being used by ${tag.documents.length} document(s)`
+        `Cannot delete tag '${tag.name}' because it is being used by ${tag.documents.length} document(s)`,
       );
     }
 
@@ -96,12 +103,15 @@ export class TagService {
     return this.tagRepository.findTagsByDocumentId(documentId);
   }
 
-  async assignTagsToDocument(documentId: string, assignTagsDto: AssignTagsDto): Promise<DocumentTagEntity[]> {
+  async assignTagsToDocument(
+    documentId: string,
+    assignTagsDto: AssignTagsDto,
+  ): Promise<DocumentTagEntity[]> {
     const { tagIds } = assignTagsDto;
 
     // Validate tag IDs
     const { valid, invalid } = await this.tagRepository.validateTagIds(tagIds);
-    
+
     if (invalid.length > 0) {
       throw new BadRequestException(`Invalid tag IDs: ${invalid.join(', ')}`);
     }
@@ -109,10 +119,10 @@ export class TagService {
     // Check if all tags are active
     const tags = await this.tagRepository.findTagsByIds(valid);
     const inactiveTags = tags.filter(tag => !tag.isActive);
-    
+
     if (inactiveTags.length > 0) {
       throw new BadRequestException(
-        `Cannot assign inactive tags: ${inactiveTags.map(tag => tag.name).join(', ')}`
+        `Cannot assign inactive tags: ${inactiveTags.map(tag => tag.name).join(', ')}`,
       );
     }
 
@@ -136,7 +146,7 @@ export class TagService {
   // ===== UTILITY OPERATIONS =====
   async getTagUsageStats(): Promise<Array<{ tag: TagEntity; documentCount: number }>> {
     const stats = await this.tagRepository.getTagUsageStats();
-    
+
     return stats.map(stat => ({
       tag: stat.tag as TagEntity,
       documentCount: stat.documentCount,
@@ -180,7 +190,9 @@ export class TagService {
         if (error instanceof ConflictException) {
           errors.push(`Tag '${tagData.name}' already exists`);
         } else {
-          errors.push(`Failed to create tag '${tagData.name}': ${error instanceof Error ? error.message : 'Unknown error'}`);
+          errors.push(
+            `Failed to create tag '${tagData.name}': ${error instanceof Error ? error.message : 'Unknown error'}`,
+          );
         }
       }
     }
@@ -194,7 +206,7 @@ export class TagService {
 
   async toggleTagStatus(id: string): Promise<TagEntity> {
     const tag = await this.getTagById(id);
-    
+
     return this.tagRepository.update(id, {
       isActive: !tag.isActive,
     });

@@ -48,7 +48,8 @@ export class TagController {
   @Roles('ADMIN', 'MANAGER')
   @ApiOperation({
     summary: 'Create a new tag',
-    description: 'Create a new tag with name, color, description, and active status. Only ADMIN and MANAGER roles can create tags.'
+    description:
+      'Create a new tag with name, color, description, and active status. Only ADMIN and MANAGER roles can create tags.',
   })
   @ApiCreatedResponse({
     description: 'Tag created successfully',
@@ -62,9 +63,9 @@ export class TagController {
         isActive: { type: 'boolean', example: true },
         createdAt: { type: 'string', format: 'date-time' },
         updatedAt: { type: 'string', format: 'date-time' },
-        documents: { type: 'array', items: { type: 'object' } }
-      }
-    }
+        documents: { type: 'array', items: { type: 'object' } },
+      },
+    },
   })
   @ApiBadRequestResponse({ description: 'Invalid input data' })
   @ApiConflictResponse({ description: 'Tag name already exists' })
@@ -80,7 +81,7 @@ export class TagController {
   @Get()
   @ApiOperation({
     summary: 'Get all tags',
-    description: 'Retrieve a paginated list of tags with optional filtering and sorting'
+    description: 'Retrieve a paginated list of tags with optional filtering and sorting',
   })
   @ApiOkResponse({
     description: 'Tags retrieved successfully',
@@ -99,17 +100,21 @@ export class TagController {
               isActive: { type: 'boolean' },
               createdAt: { type: 'string', format: 'date-time' },
               updatedAt: { type: 'string', format: 'date-time' },
-              documentCount: { type: 'number' }
-            }
-          }
+              documentCount: { type: 'number' },
+            },
+          },
         },
         total: { type: 'number' },
         page: { type: 'number' },
-        limit: { type: 'number' }
-      }
-    }
+        limit: { type: 'number' },
+      },
+    },
   })
-  @ApiQuery({ name: 'search', required: false, description: 'Search term for tag name or description' })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Search term for tag name or description',
+  })
   @ApiQuery({ name: 'isActive', required: false, description: 'Filter by active status' })
   @ApiQuery({ name: 'page', required: false, description: 'Page number', example: 1 })
   @ApiQuery({ name: 'limit', required: false, description: 'Items per page', example: 10 })
@@ -125,7 +130,7 @@ export class TagController {
   @Get('popular')
   @ApiOperation({
     summary: 'Get popular tags',
-    description: 'Get the most used tags ordered by document count'
+    description: 'Get the most used tags ordered by document count',
   })
   @ApiOkResponse({
     description: 'Popular tags retrieved successfully',
@@ -139,12 +144,17 @@ export class TagController {
           color: { type: 'string' },
           description: { type: 'string' },
           isActive: { type: 'boolean' },
-          documentCount: { type: 'number' }
-        }
-      }
-    }
+          documentCount: { type: 'number' },
+        },
+      },
+    },
   })
-  @ApiQuery({ name: 'limit', required: false, description: 'Number of popular tags to return', example: 10 })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Number of popular tags to return',
+    example: 10,
+  })
   async getPopularTags(
     @Req() req: { user: { userId: string; role: string } },
     @Query('limit') limit?: number,
@@ -156,7 +166,8 @@ export class TagController {
   @Roles('ADMIN', 'MANAGER')
   @ApiOperation({
     summary: 'Get tag usage statistics',
-    description: 'Get statistics about tag usage across all documents. Only ADMIN and MANAGER roles can access this endpoint.'
+    description:
+      'Get statistics about tag usage across all documents. Only ADMIN and MANAGER roles can access this endpoint.',
   })
   @ApiOkResponse({
     description: 'Tag usage statistics retrieved successfully',
@@ -172,13 +183,13 @@ export class TagController {
               name: { type: 'string' },
               color: { type: 'string' },
               description: { type: 'string' },
-              isActive: { type: 'boolean' }
-            }
+              isActive: { type: 'boolean' },
+            },
           },
-          documentCount: { type: 'number' }
-        }
-      }
-    }
+          documentCount: { type: 'number' },
+        },
+      },
+    },
   })
   async getTagUsageStats(
     @Req() req: { user: { userId: string; role: string } },
@@ -189,7 +200,7 @@ export class TagController {
   @Get('search')
   @ApiOperation({
     summary: 'Search tags',
-    description: 'Search for tags by name or description'
+    description: 'Search for tags by name or description',
   })
   @ApiOkResponse({
     description: 'Search results retrieved successfully',
@@ -202,13 +213,18 @@ export class TagController {
           name: { type: 'string' },
           color: { type: 'string' },
           description: { type: 'string' },
-          isActive: { type: 'boolean' }
-        }
-      }
-    }
+          isActive: { type: 'boolean' },
+        },
+      },
+    },
   })
   @ApiQuery({ name: 'q', required: true, description: 'Search query' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Maximum number of results', example: 10 })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Maximum number of results',
+    example: 10,
+  })
   async searchTags(
     @Req() req: { user: { userId: string; role: string } },
     @Query('q') searchTerm: string,
@@ -220,7 +236,7 @@ export class TagController {
   @Get(':id')
   @ApiOperation({
     summary: 'Get tag by ID',
-    description: 'Retrieve a specific tag by its ID'
+    description: 'Retrieve a specific tag by its ID',
   })
   @ApiParam({ name: 'id', description: 'Tag ID' })
   @ApiOkResponse({
@@ -235,9 +251,9 @@ export class TagController {
         isActive: { type: 'boolean' },
         createdAt: { type: 'string', format: 'date-time' },
         updatedAt: { type: 'string', format: 'date-time' },
-        documents: { type: 'array', items: { type: 'object' } }
-      }
-    }
+        documents: { type: 'array', items: { type: 'object' } },
+      },
+    },
   })
   @ApiNotFoundResponse({ description: 'Tag not found' })
   async getTagById(
@@ -251,7 +267,7 @@ export class TagController {
   @Roles('ADMIN', 'MANAGER')
   @ApiOperation({
     summary: 'Update tag',
-    description: 'Update an existing tag. Only ADMIN and MANAGER roles can update tags.'
+    description: 'Update an existing tag. Only ADMIN and MANAGER roles can update tags.',
   })
   @ApiParam({ name: 'id', description: 'Tag ID' })
   @ApiOkResponse({
@@ -266,9 +282,9 @@ export class TagController {
         isActive: { type: 'boolean' },
         createdAt: { type: 'string', format: 'date-time' },
         updatedAt: { type: 'string', format: 'date-time' },
-        documents: { type: 'array', items: { type: 'object' } }
-      }
-    }
+        documents: { type: 'array', items: { type: 'object' } },
+      },
+    },
   })
   @ApiBadRequestResponse({ description: 'Invalid input data' })
   @ApiNotFoundResponse({ description: 'Tag not found' })
@@ -287,7 +303,8 @@ export class TagController {
   @Roles('ADMIN', 'MANAGER')
   @ApiOperation({
     summary: 'Toggle tag status',
-    description: 'Toggle the active status of a tag. Only ADMIN and MANAGER roles can toggle tag status.'
+    description:
+      'Toggle the active status of a tag. Only ADMIN and MANAGER roles can toggle tag status.',
   })
   @ApiParam({ name: 'id', description: 'Tag ID' })
   @ApiOkResponse({
@@ -302,9 +319,9 @@ export class TagController {
         isActive: { type: 'boolean' },
         createdAt: { type: 'string', format: 'date-time' },
         updatedAt: { type: 'string', format: 'date-time' },
-        documents: { type: 'array', items: { type: 'object' } }
-      }
-    }
+        documents: { type: 'array', items: { type: 'object' } },
+      },
+    },
   })
   @ApiNotFoundResponse({ description: 'Tag not found' })
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
@@ -321,7 +338,8 @@ export class TagController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Delete tag',
-    description: 'Delete a tag. Only ADMIN role can delete tags. Tag must not be used by any documents.'
+    description:
+      'Delete a tag. Only ADMIN role can delete tags. Tag must not be used by any documents.',
   })
   @ApiParam({ name: 'id', description: 'Tag ID' })
   @ApiResponse({ status: 204, description: 'Tag deleted successfully' })
@@ -340,7 +358,7 @@ export class TagController {
   @Roles('ADMIN', 'MANAGER')
   @ApiOperation({
     summary: 'Bulk create tags',
-    description: 'Create multiple tags at once. Only ADMIN and MANAGER roles can bulk create tags.'
+    description: 'Create multiple tags at once. Only ADMIN and MANAGER roles can bulk create tags.',
   })
   @ApiCreatedResponse({
     description: 'Tags created successfully',
@@ -353,10 +371,10 @@ export class TagController {
           name: { type: 'string' },
           color: { type: 'string' },
           description: { type: 'string' },
-          isActive: { type: 'boolean' }
-        }
-      }
-    }
+          isActive: { type: 'boolean' },
+        },
+      },
+    },
   })
   @ApiBadRequestResponse({ description: 'Invalid input data or failed to create any tags' })
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })

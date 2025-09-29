@@ -6,7 +6,7 @@ export class GetTagsQueryDto {
   @ApiProperty({
     example: 'important',
     description: 'Search term for tag name or description',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsString()
@@ -15,7 +15,7 @@ export class GetTagsQueryDto {
   @ApiProperty({
     example: true,
     description: 'Filter by active status',
-    required: false
+    required: false,
   })
   @IsOptional()
   @Type(() => Boolean)
@@ -32,7 +32,7 @@ export class GetTagsQueryDto {
     description: 'Page number for pagination',
     required: false,
     minimum: 1,
-    default: 1
+    default: 1,
   })
   @IsOptional()
   @Type(() => Number)
@@ -46,7 +46,7 @@ export class GetTagsQueryDto {
     required: false,
     minimum: 1,
     maximum: 100,
-    default: 10
+    default: 10,
   })
   @IsOptional()
   @Type(() => Number)
@@ -60,7 +60,7 @@ export class GetTagsQueryDto {
     description: 'Field to sort by (name, createdAt, documentCount)',
     required: false,
     enum: ['name', 'createdAt', 'documentCount'],
-    default: 'name'
+    default: 'name',
   })
   @IsOptional()
   @IsString()
@@ -71,7 +71,7 @@ export class GetTagsQueryDto {
     description: 'Sort order',
     required: false,
     enum: ['asc', 'desc'],
-    default: 'asc'
+    default: 'asc',
   })
   @IsOptional()
   @IsString()

@@ -5,7 +5,7 @@ export class CreateTagDto {
   @ApiProperty({
     example: 'Important',
     description: 'Name of the tag',
-    maxLength: 50
+    maxLength: 50,
   })
   @IsString()
   @IsNotEmpty()
@@ -17,7 +17,7 @@ export class CreateTagDto {
     example: '#FF5733',
     description: 'Color code for the tag (hex format)',
     required: false,
-    maxLength: 7
+    maxLength: 7,
   })
   @IsOptional()
   @IsString()
@@ -28,7 +28,7 @@ export class CreateTagDto {
     example: 'This tag is used for important documents',
     description: 'Description of the tag',
     required: false,
-    maxLength: 255
+    maxLength: 255,
   })
   @IsOptional()
   @IsString()
@@ -39,7 +39,7 @@ export class CreateTagDto {
     example: true,
     description: 'Whether the tag is active',
     required: false,
-    default: true
+    default: true,
   })
   @IsOptional()
   @IsBoolean()

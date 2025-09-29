@@ -5,7 +5,7 @@ export class AssignTagsDto {
   @ApiProperty({
     example: ['tag-important', 'tag-urgent', 'tag-confidential'],
     description: 'Array of tag IDs to assign to the document',
-    type: [String]
+    type: [String],
   })
   @IsArray()
   @ArrayNotEmpty()
