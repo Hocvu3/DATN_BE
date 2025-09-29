@@ -9,12 +9,7 @@ import { DepartmentController } from './department.controller';
 
 @Module({
   imports: [PrismaModule, S3Module],
-  controllers: [
-    UsersController,
-    AdminController,
-    ManagerController,
-    DepartmentController,
-  ],
+  controllers: [UsersController, AdminController, ManagerController, DepartmentController],
   providers: [UsersService],
   exports: [UsersService],
 })

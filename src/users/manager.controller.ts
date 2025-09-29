@@ -103,7 +103,7 @@ export class ManagerController {
 
     try {
       const user = await this.usersService.getUserById(id);
-      
+
       // Check if user is in manager's department
       const manager = await this.usersService.findById(req.user.userId);
       if (user.departmentId !== manager?.departmentId) {
@@ -139,7 +139,7 @@ export class ManagerController {
       // Check if user is in manager's department
       const user = await this.usersService.getUserById(id);
       const manager = await this.usersService.findById(req.user.userId);
-      
+
       if (user.departmentId !== manager?.departmentId) {
         throw new UnauthorizedException('You can only update users in your department');
       }
@@ -183,7 +183,7 @@ export class ManagerController {
       // Check if user is in manager's department
       const user = await this.usersService.getUserById(id);
       const manager = await this.usersService.findById(req.user.userId);
-      
+
       if (user.departmentId !== manager?.departmentId) {
         throw new UnauthorizedException('You can only deactivate users in your department');
       }
@@ -217,7 +217,7 @@ export class ManagerController {
       // Check if user is in manager's department
       const user = await this.usersService.getUserById(id);
       const manager = await this.usersService.findById(req.user.userId);
-      
+
       if (user.departmentId !== manager?.departmentId) {
         throw new UnauthorizedException('You can only activate users in your department');
       }

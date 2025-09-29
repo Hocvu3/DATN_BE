@@ -27,7 +27,11 @@ export class InviteUserDto {
   @IsUUID()
   departmentId?: string;
 
-  @ApiProperty({ example: 'Welcome to our document management system!', description: 'Invitation message', required: false })
+  @ApiProperty({
+    example: 'Welcome to our document management system!',
+    description: 'Invitation message',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   message?: string;

@@ -97,11 +97,14 @@ export class DepartmentController {
       ]);
 
       // Get role distribution
-      const roleStats = activeUsers.users.reduce((acc, colleague) => {
-        const roleName = colleague.role?.name || 'Unknown';
-        acc[roleName] = (acc[roleName] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
+      const roleStats = activeUsers.users.reduce(
+        (acc, colleague) => {
+          const roleName = colleague.role?.name || 'Unknown';
+          acc[roleName] = (acc[roleName] || 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
 
       return {
         message: 'Department statistics retrieved successfully',
