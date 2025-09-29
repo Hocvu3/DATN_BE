@@ -31,7 +31,7 @@ export class CertificateInfoDto {
 export class SignDocumentDto {
   @ApiProperty({
     example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-    description: 'Encrypted signature data (base64 encoded)'
+    description: 'Encrypted signature data (base64 encoded)',
   })
   @IsString()
   @IsNotEmpty()
@@ -44,10 +44,10 @@ export class SignDocumentDto {
       validFrom: '2024-01-01T00:00:00.000Z',
       validTo: '2025-01-01T00:00:00.000Z',
       serialNumber: '1234567890',
-      algorithm: 'RSA-SHA256'
+      algorithm: 'RSA-SHA256',
     },
     description: 'Certificate information',
-    type: () => CertificateInfoDto
+    type: () => CertificateInfoDto,
   })
   @ValidateNested()
   @Type(() => CertificateInfoDto)
@@ -56,7 +56,7 @@ export class SignDocumentDto {
   @ApiProperty({
     example: '192.168.1.100',
     description: 'IP address of the signer',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsString()
@@ -65,7 +65,7 @@ export class SignDocumentDto {
   @ApiProperty({
     example: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
     description: 'User agent of the signer',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsString()

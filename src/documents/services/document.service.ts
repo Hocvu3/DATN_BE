@@ -9,7 +9,11 @@ import {
 } from '@nestjs/common';
 import { DocumentRepository } from '../repositories/document.repository';
 import { S3Service } from '../../s3/s3.service';
-import type { DocumentEntity, DocumentVersionEntity, DocumentCommentEntity } from '../entities/document.entity';
+import type {
+  DocumentEntity,
+  DocumentVersionEntity,
+  DocumentCommentEntity,
+} from '../entities/document.entity';
 import type { Document } from '@prisma/client';
 import { DocumentStatus, SecurityLevel } from '@prisma/client';
 import { CreateDocumentDto } from '../dto/create-document.dto';
@@ -38,7 +42,9 @@ export class DocumentService {
     }
 
     // Check if document number already exists
-    const existingDocument = await this.documentRepository.findById(createDocumentDto.documentNumber);
+    const existingDocument = await this.documentRepository.findById(
+      createDocumentDto.documentNumber,
+    );
     if (existingDocument) {
       throw new ConflictException('Document number already exists');
     }
@@ -53,7 +59,9 @@ export class DocumentService {
 
     // Validate department exists if provided
     if (createDocumentDto.departmentId) {
-      const department = await this.documentRepository.findDepartmentById(createDocumentDto.departmentId);
+      const department = await this.documentRepository.findDepartmentById(
+        createDocumentDto.departmentId,
+      );
       if (!department) {
         throw new BadRequestException('Department not found');
       }
@@ -68,8 +76,12 @@ export class DocumentService {
       securityLevel: createDocumentDto.securityLevel || SecurityLevel.INTERNAL,
       isConfidential: createDocumentDto.isConfidential || false,
       creator: { connect: { id: creatorId } },
-      approver: createDocumentDto.approverId ? { connect: { id: createDocumentDto.approverId } } : undefined,
-      department: createDocumentDto.departmentId ? { connect: { id: createDocumentDto.departmentId } } : undefined,
+      approver: createDocumentDto.approverId
+        ? { connect: { id: createDocumentDto.approverId } }
+        : undefined,
+      department: createDocumentDto.departmentId
+        ? { connect: { id: createDocumentDto.departmentId } }
+        : undefined,
     });
 
     // Add tags if provided
@@ -113,20 +125,14 @@ export class DocumentService {
     if (userRole === 'EMPLOYEE') {
       // Employees can only see documents they created or are assigned to
       where = {
-        OR: [
-          { creatorId: userId },
-          { approverId: userId },
-        ],
+        OR: [{ creatorId: userId }, { approverId: userId }],
       };
     } else if (userRole === 'MANAGER') {
       // Managers can see documents in their department
       const user = await this.documentRepository.findById(userId);
       if (user?.departmentId) {
         where = {
-          OR: [
-            { creatorId: userId },
-            { departmentId: user.departmentId },
-          ],
+          OR: [{ creatorId: userId }, { departmentId: user.departmentId }],
         };
       } else {
         where = { creatorId: userId };
@@ -149,18 +155,21 @@ export class DocumentService {
 
     // Build where clause for count (including search logic)
     const countWhere: any = { ...where };
-    
+
     // Apply search filters to count where clause
     if (query.search) {
       // If there's already an OR clause from role-based filtering, we need to combine them
       if (countWhere.OR) {
         countWhere.AND = [
           { OR: countWhere.OR }, // existing role-based OR
-          { OR: [ // search OR
-            { title: { contains: query.search, mode: 'insensitive' } },
-            { description: { contains: query.search, mode: 'insensitive' } },
-            { documentNumber: { contains: query.search, mode: 'insensitive' } },
-          ]}
+          {
+            OR: [
+              // search OR
+              { title: { contains: query.search, mode: 'insensitive' } },
+              { description: { contains: query.search, mode: 'insensitive' } },
+              { documentNumber: { contains: query.search, mode: 'insensitive' } },
+            ],
+          },
         ];
         delete countWhere.OR; // remove the original OR since it's now in AND
       } else {
@@ -171,7 +180,7 @@ export class DocumentService {
         ];
       }
     }
-    
+
     // Apply other filters to count where clause
     if (query.status) {
       countWhere.status = query.status;
@@ -270,8 +279,12 @@ export class DocumentService {
       status: updateDocumentDto.status,
       securityLevel: updateDocumentDto.securityLevel,
       isConfidential: updateDocumentDto.isConfidential,
-      approver: updateDocumentDto.approverId ? { connect: { id: updateDocumentDto.approverId } } : undefined,
-      department: updateDocumentDto.departmentId ? { connect: { id: updateDocumentDto.departmentId } } : undefined,
+      approver: updateDocumentDto.approverId
+        ? { connect: { id: updateDocumentDto.approverId } }
+        : undefined,
+      department: updateDocumentDto.departmentId
+        ? { connect: { id: updateDocumentDto.departmentId } }
+        : undefined,
     });
 
     // Update tags if provided
@@ -331,7 +344,7 @@ export class DocumentService {
 
     // Get existing versions to determine next version number
     const existingVersions = await this.documentRepository.findVersionsByDocumentId(documentId);
-    
+
     // Auto-generate version number if not provided
     let versionNumber = createVersionDto.versionNumber;
     if (!versionNumber) {
@@ -382,7 +395,10 @@ export class DocumentService {
     return this.documentRepository.findVersionsByDocumentId(documentId);
   }
 
-  async getDocumentVersion(documentId: string, versionNumber: number): Promise<DocumentVersionEntity> {
+  async getDocumentVersion(
+    documentId: string,
+    versionNumber: number,
+  ): Promise<DocumentVersionEntity> {
     const document = await this.documentRepository.findById(documentId);
     if (!document) {
       throw new NotFoundException('Document not found');
@@ -458,14 +474,16 @@ export class DocumentService {
       resourceId: version.id,
       user: { connect: { id: userId } },
       document: { connect: { id: documentId } },
-      details: { 
+      details: {
         versionNumber: version.versionNumber,
         s3Key: version.s3Key,
-        filename: version.filePath 
+        filename: version.filePath,
       },
     });
 
-    this.logger.log(`Document version deleted: ${version.id} (v${versionNumber}) for document ${documentId}`);
+    this.logger.log(
+      `Document version deleted: ${version.id} (v${versionNumber}) for document ${documentId}`,
+    );
   }
 
   // ===== DOCUMENT COMMENTS =====
@@ -513,13 +531,13 @@ export class DocumentService {
   async addTagsToDocument(documentId: string, tagNames: string[]): Promise<void> {
     for (const tagName of tagNames) {
       // Find or create tag
-      let tag = await this.documentRepository.findById(tagName); // This should be a tag lookup
+      const tag = await this.documentRepository.findById(tagName); // This should be a tag lookup
       if (!tag) {
         // Create tag if it doesn't exist
         // This would need a tag service/repository
         continue;
       }
-      
+
       await this.documentRepository.addTag(documentId, tag.id);
     }
   }
@@ -536,7 +554,11 @@ export class DocumentService {
   }
 
   // ===== PERMISSION CHECKS =====
-  private async checkDocumentAccess(document: DocumentEntity, userId: string, userRole: string): Promise<void> {
+  private async checkDocumentAccess(
+    document: DocumentEntity,
+    userId: string,
+    userRole: string,
+  ): Promise<void> {
     if (userRole === 'ADMIN') {
       return; // Admin can access all documents
     }
@@ -555,7 +577,11 @@ export class DocumentService {
     throw new ForbiddenException('You do not have permission to access this document');
   }
 
-  private async checkDocumentUpdatePermission(document: DocumentEntity, userId: string, userRole: string): Promise<void> {
+  private async checkDocumentUpdatePermission(
+    document: DocumentEntity,
+    userId: string,
+    userRole: string,
+  ): Promise<void> {
     if (userRole === 'ADMIN') {
       return; // Admin can update all documents
     }
@@ -574,7 +600,11 @@ export class DocumentService {
     throw new ForbiddenException('You do not have permission to update this document');
   }
 
-  private async checkDocumentDeletePermission(document: DocumentEntity, userId: string, userRole: string): Promise<void> {
+  private async checkDocumentDeletePermission(
+    document: DocumentEntity,
+    userId: string,
+    userRole: string,
+  ): Promise<void> {
     if (userRole !== 'ADMIN') {
       throw new ForbiddenException('Only administrators can delete documents');
     }
@@ -593,7 +623,7 @@ export class DocumentService {
       filename: string;
       contentType: string;
       sizeBytes?: number;
-    }
+    },
   ) {
     // Check if document exists
     const document = await this.documentRepository.findById(documentId);
@@ -628,10 +658,10 @@ export class DocumentService {
       resourceId: asset.id,
       user: { connect: { id: userId } },
       document: { connect: { id: documentId } },
-      details: { 
-        filename: asset.filename, 
+      details: {
+        filename: asset.filename,
         s3Key: assetData.s3Key,
-        contentType: asset.contentType 
+        contentType: asset.contentType,
       },
     });
 
@@ -676,7 +706,7 @@ export class DocumentService {
 
     // Extract S3 key from S3 URL
     const s3Key = this.extractS3KeyFromUrl(asset.s3Url);
-    
+
     // Delete file from S3 if s3Key exists
     if (s3Key) {
       try {
@@ -698,10 +728,10 @@ export class DocumentService {
       resourceId: assetId,
       user: { connect: { id: userId } },
       document: { connect: { id: documentId } },
-      details: { 
+      details: {
         filename: asset.filename,
         s3Url: asset.s3Url,
-        s3Key: s3Key
+        s3Key: s3Key,
       },
     });
 

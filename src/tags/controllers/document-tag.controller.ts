@@ -40,7 +40,7 @@ export class DocumentTagController {
   @Get()
   @ApiOperation({
     summary: 'Get document tags',
-    description: 'Retrieve all tags assigned to a specific document'
+    description: 'Retrieve all tags assigned to a specific document',
   })
   @ApiParam({ name: 'documentId', description: 'Document ID' })
   @ApiOkResponse({
@@ -56,10 +56,10 @@ export class DocumentTagController {
           description: { type: 'string' },
           isActive: { type: 'boolean' },
           createdAt: { type: 'string', format: 'date-time' },
-          updatedAt: { type: 'string', format: 'date-time' }
-        }
-      }
-    }
+          updatedAt: { type: 'string', format: 'date-time' },
+        },
+      },
+    },
   })
   @ApiNotFoundResponse({ description: 'Document not found' })
   async getDocumentTags(
@@ -73,7 +73,7 @@ export class DocumentTagController {
   @Roles('ADMIN', 'MANAGER', 'EMPLOYEE')
   @ApiOperation({
     summary: 'Assign tags to document',
-    description: 'Assign one or more tags to a document. All roles can assign tags to documents.'
+    description: 'Assign one or more tags to a document. All roles can assign tags to documents.',
   })
   @ApiParam({ name: 'documentId', description: 'Document ID' })
   @ApiCreatedResponse({
@@ -87,10 +87,10 @@ export class DocumentTagController {
           documentId: { type: 'string' },
           tagId: { type: 'string' },
           document: { type: 'object' },
-          tag: { type: 'object' }
-        }
-      }
-    }
+          tag: { type: 'object' },
+        },
+      },
+    },
   })
   @ApiBadRequestResponse({ description: 'Invalid tag IDs or inactive tags' })
   @ApiNotFoundResponse({ description: 'Document not found' })
@@ -109,7 +109,7 @@ export class DocumentTagController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Remove tag from document',
-    description: 'Remove a specific tag from a document. All roles can remove tags from documents.'
+    description: 'Remove a specific tag from a document. All roles can remove tags from documents.',
   })
   @ApiParam({ name: 'documentId', description: 'Document ID' })
   @ApiParam({ name: 'tagId', description: 'Tag ID to remove' })
@@ -130,7 +130,7 @@ export class DocumentTagController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Remove all tags from document',
-    description: 'Remove all tags from a document. All roles can remove all tags from documents.'
+    description: 'Remove all tags from a document. All roles can remove all tags from documents.',
   })
   @ApiParam({ name: 'documentId', description: 'Document ID' })
   @ApiResponse({ status: 204, description: 'All tags removed successfully' })

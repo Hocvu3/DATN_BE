@@ -6,7 +6,7 @@ export class UpdateSignatureStatusDto {
   @ApiProperty({
     example: 'CANCELLED',
     description: 'New status for the signature request',
-    enum: $Enums.SignatureStatus
+    enum: $Enums.SignatureStatus,
   })
   @IsEnum($Enums.SignatureStatus)
   status!: SignatureStatus;
@@ -14,7 +14,7 @@ export class UpdateSignatureStatusDto {
   @ApiProperty({
     example: 'Document content is not accurate',
     description: 'Reason for status change',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsString()

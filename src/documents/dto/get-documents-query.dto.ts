@@ -26,17 +26,31 @@ export class GetDocumentsQueryDto {
   @Min(1)
   limit?: number = 10;
 
-  @ApiProperty({ example: 'project requirements', description: 'Search by title or description', required: false })
+  @ApiProperty({
+    example: 'project requirements',
+    description: 'Search by title or description',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   search?: string;
 
-  @ApiProperty({ example: 'DRAFT', description: 'Filter by status', enum: DocumentStatus, required: false })
+  @ApiProperty({
+    example: 'DRAFT',
+    description: 'Filter by status',
+    enum: DocumentStatus,
+    required: false,
+  })
   @IsOptional()
   @IsEnum(DocumentStatus)
   status?: DocumentStatus;
 
-  @ApiProperty({ example: 'INTERNAL', description: 'Filter by security level', enum: SecurityLevel, required: false })
+  @ApiProperty({
+    example: 'INTERNAL',
+    description: 'Filter by security level',
+    enum: SecurityLevel,
+    required: false,
+  })
   @IsOptional()
   @IsEnum(SecurityLevel)
   securityLevel?: SecurityLevel;
@@ -52,7 +66,11 @@ export class GetDocumentsQueryDto {
   @Type(() => Boolean)
   isConfidential?: boolean;
 
-  @ApiProperty({ example: 'uuid-department-id', description: 'Filter by department ID', required: false })
+  @ApiProperty({
+    example: 'uuid-department-id',
+    description: 'Filter by department ID',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   departmentId?: string;
@@ -67,12 +85,20 @@ export class GetDocumentsQueryDto {
   @IsString()
   tag?: string;
 
-  @ApiProperty({ example: '2024-01-01', description: 'Filter by creation date from (YYYY-MM-DD)', required: false })
+  @ApiProperty({
+    example: '2024-01-01',
+    description: 'Filter by creation date from (YYYY-MM-DD)',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   createdFrom?: string;
 
-  @ApiProperty({ example: '2024-12-31', description: 'Filter by creation date to (YYYY-MM-DD)', required: false })
+  @ApiProperty({
+    example: '2024-12-31',
+    description: 'Filter by creation date to (YYYY-MM-DD)',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   createdTo?: string;

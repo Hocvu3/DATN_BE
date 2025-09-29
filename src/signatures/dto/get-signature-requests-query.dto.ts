@@ -19,7 +19,7 @@ export class GetSignatureRequestsQueryDto {
   @ApiProperty({
     example: 'doc-123',
     description: 'Filter by document ID',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsString()
@@ -28,7 +28,7 @@ export class GetSignatureRequestsQueryDto {
   @ApiProperty({
     example: 'user-123',
     description: 'Filter by requester ID',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsString()
@@ -38,7 +38,7 @@ export class GetSignatureRequestsQueryDto {
     example: 'PENDING',
     description: 'Filter by signature status',
     enum: SignatureStatus,
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsEnum(SignatureStatus)
@@ -48,7 +48,7 @@ export class GetSignatureRequestsQueryDto {
     example: 'ELECTRONIC',
     description: 'Filter by signature type',
     enum: SignatureType,
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsEnum(SignatureType)
@@ -57,7 +57,7 @@ export class GetSignatureRequestsQueryDto {
   @ApiProperty({
     example: '2024-01-01',
     description: 'Filter by date from (YYYY-MM-DD)',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsDateString()
@@ -66,7 +66,7 @@ export class GetSignatureRequestsQueryDto {
   @ApiProperty({
     example: '2024-12-31',
     description: 'Filter by date to (YYYY-MM-DD)',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsDateString()
@@ -77,7 +77,7 @@ export class GetSignatureRequestsQueryDto {
     description: 'Page number for pagination',
     required: false,
     minimum: 1,
-    default: 1
+    default: 1,
   })
   @IsOptional()
   @Type(() => Number)
@@ -91,7 +91,7 @@ export class GetSignatureRequestsQueryDto {
     required: false,
     minimum: 1,
     maximum: 100,
-    default: 10
+    default: 10,
   })
   @IsOptional()
   @Type(() => Number)
@@ -105,7 +105,7 @@ export class GetSignatureRequestsQueryDto {
     description: 'Field to sort by',
     enum: ['requestedAt', 'expiresAt', 'signedAt', 'status'],
     required: false,
-    default: 'requestedAt'
+    default: 'requestedAt',
   })
   @IsOptional()
   @IsString()
@@ -116,7 +116,7 @@ export class GetSignatureRequestsQueryDto {
     description: 'Sort order',
     enum: ['asc', 'desc'],
     required: false,
-    default: 'desc'
+    default: 'desc',
   })
   @IsOptional()
   @IsString()

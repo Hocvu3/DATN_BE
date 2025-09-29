@@ -55,20 +55,13 @@ export class TagRepository {
     sortBy?: 'name' | 'createdAt' | 'documentCount';
     sortOrder?: 'asc' | 'desc';
   }): Promise<{ tags: TagWithDocumentCount[]; total: number }> {
-    const {
-      search,
-      isActive,
-      page = 1,
-      limit = 10,
-      sortBy = 'name',
-      sortOrder = 'asc',
-    } = params;
+    const { search, isActive, page = 1, limit = 10, sortBy = 'name', sortOrder = 'asc' } = params;
 
     const skip = (page - 1) * limit;
 
     // Build where clause
     const where: Prisma.TagWhereInput = {};
-    
+
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
@@ -82,7 +75,7 @@ export class TagRepository {
 
     // Build orderBy clause
     let orderBy: Prisma.TagOrderByWithRelationInput = {};
-    
+
     if (sortBy === 'documentCount') {
       // For document count, we need to use a different approach
       orderBy = { documents: { _count: sortOrder } };

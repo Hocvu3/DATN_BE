@@ -1,4 +1,13 @@
-import { IsString, IsOptional, IsEnum, IsBoolean, IsArray, IsUUID, MinLength, MaxLength } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsEnum,
+  IsBoolean,
+  IsArray,
+  IsUUID,
+  MinLength,
+  MaxLength,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { DocumentStatus, SecurityLevel } from '@prisma/client';
 
@@ -9,10 +18,10 @@ export class CreateDocumentDto {
   @MaxLength(255)
   title?: string;
 
-  @ApiProperty({ 
-    example: 'This document outlines the requirements for the new project', 
+  @ApiProperty({
+    example: 'This document outlines the requirements for the new project',
     description: 'Document description',
-    required: false 
+    required: false,
   })
   @IsString()
   @IsOptional()
@@ -25,57 +34,57 @@ export class CreateDocumentDto {
   @MaxLength(50)
   documentNumber?: string;
 
-  @ApiProperty({ 
-    example: 'DRAFT', 
+  @ApiProperty({
+    example: 'DRAFT',
     description: 'Document status',
     enum: DocumentStatus,
-    required: false 
+    required: false,
   })
   @IsEnum(DocumentStatus)
   @IsOptional()
   status?: DocumentStatus = DocumentStatus.DRAFT;
 
-  @ApiProperty({ 
-    example: 'INTERNAL', 
+  @ApiProperty({
+    example: 'INTERNAL',
     description: 'Security level',
     enum: SecurityLevel,
-    required: false 
+    required: false,
   })
   @IsEnum(SecurityLevel)
   @IsOptional()
   securityLevel?: SecurityLevel = SecurityLevel.INTERNAL;
 
-  @ApiProperty({ 
-    example: false, 
+  @ApiProperty({
+    example: false,
     description: 'Is document confidential',
-    required: false 
+    required: false,
   })
   @IsBoolean()
   @IsOptional()
   isConfidential?: boolean = false;
 
-  @ApiProperty({ 
-    example: 'uuid-department-id', 
+  @ApiProperty({
+    example: 'uuid-department-id',
     description: 'Department ID',
-    required: false 
+    required: false,
   })
   @IsString()
   @IsOptional()
   departmentId?: string;
 
-  @ApiProperty({ 
-    example: 'uuid-approver-id', 
+  @ApiProperty({
+    example: 'uuid-approver-id',
     description: 'Approver user ID',
-    required: false 
+    required: false,
   })
   @IsString()
   @IsOptional()
   approverId?: string;
 
-  @ApiProperty({ 
-    example: ['tag1', 'tag2'], 
+  @ApiProperty({
+    example: ['tag1', 'tag2'],
     description: 'Document tags',
-    required: false 
+    required: false,
   })
   @IsArray()
   @IsString({ each: true })

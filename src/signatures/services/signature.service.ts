@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+  ConflictException,
+} from '@nestjs/common';
 import { SignatureRepository } from '../repositories/signature.repository';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateSignatureRequestDto } from '../dto/create-signature-request.dto';
@@ -6,11 +12,11 @@ import { UpdateSignatureRequestDto } from '../dto/update-signature-request.dto';
 import { GetSignatureRequestsQueryDto } from '../dto/get-signature-requests-query.dto';
 import { SignDocumentDto } from '../dto/sign-document.dto';
 import { UpdateSignatureStatusDto } from '../dto/update-signature-status.dto';
-import type { 
-  SignatureRequestEntity, 
-  DigitalSignatureEntity, 
+import type {
+  SignatureRequestEntity,
+  DigitalSignatureEntity,
   SignatureRequestWithDetails,
-  SignatureStats 
+  SignatureStats,
 } from '../entities/signature.entity';
 import { SignatureType, SignatureStatus, Prisma } from '@prisma/client';
 
@@ -38,28 +44,36 @@ export class SignatureService {
     // This would typically involve checking document permissions
     // For now, we'll assume the user has permission
 
-    return this.prisma.runWithUserContext({ userId: requesterId, role: null, departmentId: null }, async (tx) => {
-      return this.signatureRepository.createSignatureRequest(
-        {
-          document: { connect: { id: documentId } },
-          requester: { connect: { id: requesterId } },
-          signatureType: signatureType as SignatureType,
-          expiresAt: expirationDate,
-          reason,
-        },
-        tx,
-      );
-    });
+    return this.prisma.runWithUserContext(
+      { userId: requesterId, role: null, departmentId: null },
+      async tx => {
+        return this.signatureRepository.createSignatureRequest(
+          {
+            document: { connect: { id: documentId } },
+            requester: { connect: { id: requesterId } },
+            signatureType: signatureType,
+            expiresAt: expirationDate,
+            reason,
+          },
+          tx,
+        );
+      },
+    );
   }
 
   async getSignatureRequests(
     query: GetSignatureRequestsQueryDto,
     userId: string,
     userRole: string,
-  ): Promise<{ requests: SignatureRequestWithDetails[]; total: number; page: number; limit: number }> {
+  ): Promise<{
+    requests: SignatureRequestWithDetails[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
     // Apply role-based filtering
     const filters = { ...query };
-    
+
     // Non-admin users can only see their own requests or requests they can sign
     if (userRole !== 'ADMIN') {
       // For now, we'll show all requests, but in a real implementation,
@@ -76,7 +90,11 @@ export class SignatureService {
     };
   }
 
-  async getSignatureRequestById(id: string, userId: string, userRole: string): Promise<SignatureRequestEntity> {
+  async getSignatureRequestById(
+    id: string,
+    userId: string,
+    userRole: string,
+  ): Promise<SignatureRequestEntity> {
     const request = await this.signatureRepository.findSignatureRequestById(id);
     if (!request) {
       throw new NotFoundException(`Signature request with ID '${id}' not found`);
@@ -113,7 +131,7 @@ export class SignatureService {
     }
 
     const updateData: any = {};
-    
+
     if (updateSignatureRequestDto.expiresAt) {
       const expirationDate = new Date(updateSignatureRequestDto.expiresAt);
       if (expirationDate <= new Date()) {
@@ -187,47 +205,62 @@ export class SignatureService {
     }
 
     // Create digital signature within context so triggers capture current user
-    return this.prisma.runWithUserContext({ userId: signerId, role: userRole, departmentId: null }, async (tx) => {
-      const digitalSignature = await this.signatureRepository.createDigitalSignature(
-        {
-          request: { connect: { id: requestId } },
-          signer: { connect: { id: signerId } },
-          signatureData: signDocumentDto.signatureData,
-          certificateInfo: signDocumentDto.certificateInfo as unknown as Prisma.InputJsonValue,
-          ipAddress: signDocumentDto.ipAddress,
-          userAgent: signDocumentDto.userAgent,
-        },
-        tx,
-      );
+    return this.prisma.runWithUserContext(
+      { userId: signerId, role: userRole, departmentId: null },
+      async tx => {
+        const digitalSignature = await this.signatureRepository.createDigitalSignature(
+          {
+            request: { connect: { id: requestId } },
+            signer: { connect: { id: signerId } },
+            signatureData: signDocumentDto.signatureData,
+            certificateInfo: signDocumentDto.certificateInfo as unknown as Prisma.InputJsonValue,
+            ipAddress: signDocumentDto.ipAddress,
+            userAgent: signDocumentDto.userAgent,
+          },
+          tx,
+        );
 
-      await this.signatureRepository.updateSignatureRequest(
-        requestId,
-        {
-          status: SignatureStatus.SIGNED,
-          signedAt: new Date(),
-        },
-        tx,
-      );
+        await this.signatureRepository.updateSignatureRequest(
+          requestId,
+          {
+            status: SignatureStatus.SIGNED,
+            signedAt: new Date(),
+          },
+          tx,
+        );
 
-      return digitalSignature;
-    });
+        return digitalSignature;
+      },
+    );
   }
 
-  async getDigitalSignatureById(id: string, userId: string, userRole: string): Promise<DigitalSignatureEntity> {
+  async getDigitalSignatureById(
+    id: string,
+    userId: string,
+    userRole: string,
+  ): Promise<DigitalSignatureEntity> {
     const signature = await this.signatureRepository.findDigitalSignatureById(id);
     if (!signature) {
       throw new NotFoundException(`Digital signature with ID '${id}' not found`);
     }
 
     // Check permissions
-    if (userRole !== 'ADMIN' && signature.signerId !== userId && signature.request.requesterId !== userId) {
+    if (
+      userRole !== 'ADMIN' &&
+      signature.signerId !== userId &&
+      signature.request.requesterId !== userId
+    ) {
       throw new ForbiddenException('You do not have permission to view this digital signature');
     }
 
     return signature;
   }
 
-  async getDigitalSignaturesByRequestId(requestId: string, userId: string, userRole: string): Promise<DigitalSignatureEntity[]> {
+  async getDigitalSignaturesByRequestId(
+    requestId: string,
+    userId: string,
+    userRole: string,
+  ): Promise<DigitalSignatureEntity[]> {
     const request = await this.signatureRepository.findSignatureRequestById(requestId);
     if (!request) {
       throw new NotFoundException(`Signature request with ID '${requestId}' not found`);
@@ -235,7 +268,9 @@ export class SignatureService {
 
     // Check permissions
     if (userRole !== 'ADMIN' && request.requesterId !== userId) {
-      throw new ForbiddenException('You do not have permission to view signatures for this request');
+      throw new ForbiddenException(
+        'You do not have permission to view signatures for this request',
+      );
     }
 
     return this.signatureRepository.findDigitalSignaturesByRequestId(requestId);
@@ -255,7 +290,9 @@ export class SignatureService {
 
     // Check permissions
     if (userRole !== 'ADMIN' && request.requesterId !== userId) {
-      throw new ForbiddenException('You do not have permission to update this signature request status');
+      throw new ForbiddenException(
+        'You do not have permission to update this signature request status',
+      );
     }
 
     // Check if status can be updated
@@ -274,7 +311,11 @@ export class SignatureService {
       status: nextStatus,
     };
 
-    if (((updateSignatureStatusDto.status as any) === 'REJECTED' || nextStatus === SignatureStatus.CANCELLED) && updateSignatureStatusDto.reason) {
+    if (
+      ((updateSignatureStatusDto.status as any) === 'REJECTED' ||
+        nextStatus === SignatureStatus.CANCELLED) &&
+      updateSignatureStatusDto.reason
+    ) {
       updateData.reason = updateSignatureStatusDto.reason;
     }
 
@@ -294,7 +335,11 @@ export class SignatureService {
     return this.signatureRepository.findPendingSignatureRequestsForUser(userId);
   }
 
-  async getSignatureRequestsByRequester(requesterId: string, userId: string, userRole: string): Promise<SignatureRequestEntity[]> {
+  async getSignatureRequestsByRequester(
+    requesterId: string,
+    userId: string,
+    userRole: string,
+  ): Promise<SignatureRequestEntity[]> {
     // Check permissions
     if (userRole !== 'ADMIN' && requesterId !== userId) {
       throw new ForbiddenException('You can only view your own signature requests');
@@ -307,25 +352,48 @@ export class SignatureService {
     return this.signatureRepository.markExpiredRequests();
   }
 
-  async getSignatureRequestsByDocumentId(documentId: string, userId: string, userRole: string): Promise<SignatureRequestEntity[]> {
+  async getSignatureRequestsByDocumentId(
+    documentId: string,
+    userId: string,
+    userRole: string,
+  ): Promise<SignatureRequestEntity[]> {
     // Add permission check here - user should have access to the document
     return this.signatureRepository.findSignatureRequestsByDocumentId(documentId);
   }
 
   // ===== WORKFLOW OPERATIONS =====
-  async approveSignatureRequest(id: string, userId: string, userRole: string): Promise<SignatureRequestEntity> {
+  async approveSignatureRequest(
+    id: string,
+    userId: string,
+    userRole: string,
+  ): Promise<SignatureRequestEntity> {
     if (userRole !== 'ADMIN') {
       throw new ForbiddenException('Only administrators can approve signature requests');
     }
 
-    return this.updateSignatureStatus(id, { status: SignatureStatus.SIGNED as any }, userId, userRole);
+    return this.updateSignatureStatus(
+      id,
+      { status: SignatureStatus.SIGNED as any },
+      userId,
+      userRole,
+    );
   }
 
-  async rejectSignatureRequest(id: string, reason: string, userId: string, userRole: string): Promise<SignatureRequestEntity> {
+  async rejectSignatureRequest(
+    id: string,
+    reason: string,
+    userId: string,
+    userRole: string,
+  ): Promise<SignatureRequestEntity> {
     if (userRole !== 'ADMIN') {
       throw new ForbiddenException('Only administrators can reject signature requests');
     }
 
-    return this.updateSignatureStatus(id, { status: SignatureStatus.CANCELLED as any, reason }, userId, userRole);
+    return this.updateSignatureStatus(
+      id,
+      { status: SignatureStatus.CANCELLED as any, reason },
+      userId,
+      userRole,
+    );
   }
 }

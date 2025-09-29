@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import type { 
-  SignatureRequestEntity, 
-  DigitalSignatureEntity, 
+import type {
+  SignatureRequestEntity,
+  DigitalSignatureEntity,
   SignatureRequestWithDetails,
-  SignatureStats 
+  SignatureStats,
 } from '../entities/signature.entity';
 import type { SignatureRequest, DigitalSignature, Prisma } from '@prisma/client';
 import type { Prisma as PrismaNS } from '@prisma/client';
@@ -96,7 +96,7 @@ export class SignatureRepository {
 
     // Build where clause
     const where: Prisma.SignatureRequestWhereInput = {};
-    
+
     if (documentId) {
       where.documentId = documentId;
     }
@@ -287,13 +287,14 @@ export class SignatureRepository {
 
   // ===== UTILITY METHODS =====
   async getSignatureStats(): Promise<SignatureStats> {
-    const [totalRequests, pendingRequests, signedRequests, expiredRequests, rejectedRequests] = await Promise.all([
-      this.prisma.signatureRequest.count(),
-      this.prisma.signatureRequest.count({ where: { status: 'PENDING' } }),
-      this.prisma.signatureRequest.count({ where: { status: 'SIGNED' } }),
-      this.prisma.signatureRequest.count({ where: { status: 'EXPIRED' } }),
-      this.prisma.signatureRequest.count({ where: { status: 'CANCELLED' } }),
-    ]);
+    const [totalRequests, pendingRequests, signedRequests, expiredRequests, rejectedRequests] =
+      await Promise.all([
+        this.prisma.signatureRequest.count(),
+        this.prisma.signatureRequest.count({ where: { status: 'PENDING' } }),
+        this.prisma.signatureRequest.count({ where: { status: 'SIGNED' } }),
+        this.prisma.signatureRequest.count({ where: { status: 'EXPIRED' } }),
+        this.prisma.signatureRequest.count({ where: { status: 'CANCELLED' } }),
+      ]);
 
     return {
       totalRequests,

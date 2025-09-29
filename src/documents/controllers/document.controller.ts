@@ -42,7 +42,10 @@ export class DocumentController {
     @Body() createDocumentDto: CreateDocumentDto,
   ) {
     try {
-      const document = await this.documentService.createDocument(req.user.userId, createDocumentDto);
+      const document = await this.documentService.createDocument(
+        req.user.userId,
+        createDocumentDto,
+      );
       return {
         message: 'Document created successfully',
         document: {
@@ -59,16 +62,20 @@ export class DocumentController {
             firstName: document.creator.firstName,
             lastName: document.creator.lastName,
           },
-          approver: document.approver ? {
-            id: document.approver.id,
-            email: document.approver.email,
-            firstName: document.approver.firstName,
-            lastName: document.approver.lastName,
-          } : null,
-          department: document.department ? {
-            id: document.department.id,
-            name: document.department.name,
-          } : null,
+          approver: document.approver
+            ? {
+                id: document.approver.id,
+                email: document.approver.email,
+                firstName: document.approver.firstName,
+                lastName: document.approver.lastName,
+              }
+            : null,
+          department: document.department
+            ? {
+                id: document.department.id,
+                name: document.department.name,
+              }
+            : null,
           createdAt: document.createdAt,
           updatedAt: document.updatedAt,
         },
@@ -112,7 +119,11 @@ export class DocumentController {
     @Param('id') id: string,
   ) {
     try {
-      const document = await this.documentService.getDocumentById(id, req.user.userId, req.user.role);
+      const document = await this.documentService.getDocumentById(
+        id,
+        req.user.userId,
+        req.user.role,
+      );
       return {
         message: 'Document retrieved successfully',
         document,
@@ -135,7 +146,12 @@ export class DocumentController {
     @Body() updateDocumentDto: UpdateDocumentDto,
   ) {
     try {
-      const document = await this.documentService.updateDocument(id, req.user.userId, req.user.role, updateDocumentDto);
+      const document = await this.documentService.updateDocument(
+        id,
+        req.user.userId,
+        req.user.role,
+        updateDocumentDto,
+      );
       return {
         message: 'Document updated successfully',
         document,
@@ -172,11 +188,12 @@ export class DocumentController {
 
   // ===== DOCUMENT VERSIONS =====
   @Post(':id/versions/presigned-url')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Generate presigned URL for document version upload',
-    description: 'Generate a presigned URL for uploading a new version of a document to S3. After upload, call POST /documents/:id/versions to create the version record.'
+    description:
+      'Generate a presigned URL for uploading a new version of a document to S3. After upload, call POST /documents/:id/versions to create the version record.',
   })
-  @ApiOkResponse({ 
+  @ApiOkResponse({
     description: 'Presigned URL generated successfully',
     schema: {
       type: 'object',
@@ -184,25 +201,28 @@ export class DocumentController {
         presignedUrl: {
           type: 'string',
           description: 'Presigned URL for uploading version file to S3',
-          example: 'https://your-bucket.s3.amazonaws.com/documents/versions/2024/01/15/document-v2.pdf?X-Amz-Algorithm=...'
+          example:
+            'https://your-bucket.s3.amazonaws.com/documents/versions/2024/01/15/document-v2.pdf?X-Amz-Algorithm=...',
         },
         key: {
           type: 'string',
           description: 'S3 object key for the version file',
-          example: 'documents/versions/2024/01/15/document-v2.pdf'
+          example: 'documents/versions/2024/01/15/document-v2.pdf',
         },
         publicUrl: {
           type: 'string',
           description: 'Public URL to access the version file',
-          example: 'https://your-bucket.s3.amazonaws.com/documents/versions/2024/01/15/document-v2.pdf'
+          example:
+            'https://your-bucket.s3.amazonaws.com/documents/versions/2024/01/15/document-v2.pdf',
         },
         message: {
           type: 'string',
           description: 'Success message with next steps',
-          example: 'Upload version file to presigned URL, then call POST /documents/:id/versions to create version record'
-        }
-      }
-    }
+          example:
+            'Upload version file to presigned URL, then call POST /documents/:id/versions to create version record',
+        },
+      },
+    },
   })
   async generateVersionPresignedUrl(
     @Req() req: { user: { userId: string; role: string } },
@@ -211,8 +231,12 @@ export class DocumentController {
   ) {
     try {
       // Check if document exists
-      const document = await this.documentService.getDocumentById(id, req.user.userId, req.user.role);
-      
+      const document = await this.documentService.getDocumentById(
+        id,
+        req.user.userId,
+        req.user.role,
+      );
+
       // Generate presigned URL for version upload
       const { presignedUrl, key, publicUrl } = await this.s3Service.generatePresignedUrl(
         body.fileName,
@@ -224,7 +248,8 @@ export class DocumentController {
         presignedUrl,
         key,
         publicUrl,
-        message: 'Upload version file to presigned URL, then call POST /documents/:id/versions to create version record',
+        message:
+          'Upload version file to presigned URL, then call POST /documents/:id/versions to create version record',
       };
     } catch (error) {
       const errorMessage =
@@ -236,9 +261,10 @@ export class DocumentController {
   }
 
   @Post(':id/versions')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Create document version',
-    description: 'Create a new version record for a document. Use this after uploading the version file via presigned URL.'
+    description:
+      'Create a new version record for a document. Use this after uploading the version file via presigned URL.',
   })
   @ApiOkResponse({ description: 'Document version created successfully' })
   async createDocumentVersion(
@@ -247,7 +273,11 @@ export class DocumentController {
     @Body() createVersionDto: CreateDocumentVersionDto,
   ) {
     try {
-      const version = await this.documentService.createDocumentVersion(id, req.user.userId, createVersionDto);
+      const version = await this.documentService.createDocumentVersion(
+        id,
+        req.user.userId,
+        createVersionDto,
+      );
       return {
         message: 'Document version created successfully',
         version,
@@ -262,18 +292,19 @@ export class DocumentController {
   }
 
   @Get(':id/versions')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get document versions',
-    description: 'Get all versions of a document with their S3 URLs and metadata. Each version has its own S3 URL for accessing the file.'
+    description:
+      'Get all versions of a document with their S3 URLs and metadata. Each version has its own S3 URL for accessing the file.',
   })
-  @ApiOkResponse({ 
+  @ApiOkResponse({
     description: 'Document versions retrieved successfully',
     schema: {
       type: 'object',
       properties: {
         message: {
           type: 'string',
-          example: 'Document versions retrieved successfully'
+          example: 'Document versions retrieved successfully',
         },
         versions: {
           type: 'array',
@@ -284,7 +315,10 @@ export class DocumentController {
               versionNumber: { type: 'number', example: 1 },
               filePath: { type: 'string', example: '/documents/file.pdf' },
               s3Key: { type: 'string', example: 'documents/versions/2024/01/15/file-v1.pdf' },
-              s3Url: { type: 'string', example: 'https://bucket.s3.amazonaws.com/documents/versions/file-v1.pdf' },
+              s3Url: {
+                type: 'string',
+                example: 'https://bucket.s3.amazonaws.com/documents/versions/file-v1.pdf',
+              },
               fileSize: { type: 'number', example: 1024000 },
               checksum: { type: 'string', example: 'a1b2c3d4e5f6...' },
               mimeType: { type: 'string', example: 'application/pdf' },
@@ -296,14 +330,14 @@ export class DocumentController {
                   id: { type: 'string' },
                   email: { type: 'string' },
                   firstName: { type: 'string' },
-                  lastName: { type: 'string' }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+                  lastName: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
   })
   async getDocumentVersions(
     @Req() req: { user: { userId: string; role: string } },
@@ -312,7 +346,7 @@ export class DocumentController {
     try {
       // Check document access first
       await this.documentService.getDocumentById(id, req.user.userId, req.user.role);
-      
+
       const versions = await this.documentService.getDocumentVersions(id);
       return {
         message: 'Document versions retrieved successfully',
@@ -328,18 +362,19 @@ export class DocumentController {
   }
 
   @Get(':id/versions/:versionNumber')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get specific document version',
-    description: 'Get a specific version of a document by version number with its S3 URL for file access'
+    description:
+      'Get a specific version of a document by version number with its S3 URL for file access',
   })
-  @ApiOkResponse({ 
+  @ApiOkResponse({
     description: 'Document version retrieved successfully',
     schema: {
       type: 'object',
       properties: {
         message: {
           type: 'string',
-          example: 'Document version retrieved successfully'
+          example: 'Document version retrieved successfully',
         },
         version: {
           type: 'object',
@@ -348,7 +383,10 @@ export class DocumentController {
             versionNumber: { type: 'number', example: 2 },
             filePath: { type: 'string', example: '/documents/file.pdf' },
             s3Key: { type: 'string', example: 'documents/versions/2024/01/15/file-v2.pdf' },
-            s3Url: { type: 'string', example: 'https://bucket.s3.amazonaws.com/documents/versions/file-v2.pdf' },
+            s3Url: {
+              type: 'string',
+              example: 'https://bucket.s3.amazonaws.com/documents/versions/file-v2.pdf',
+            },
             fileSize: { type: 'number', example: 1024000 },
             checksum: { type: 'string', example: 'a1b2c3d4e5f6...' },
             mimeType: { type: 'string', example: 'application/pdf' },
@@ -360,13 +398,13 @@ export class DocumentController {
                 id: { type: 'string' },
                 email: { type: 'string' },
                 firstName: { type: 'string' },
-                lastName: { type: 'string' }
-              }
-            }
-          }
-        }
-      }
-    }
+                lastName: { type: 'string' },
+              },
+            },
+          },
+        },
+      },
+    },
   })
   async getDocumentVersion(
     @Req() req: { user: { userId: string; role: string } },
@@ -376,7 +414,7 @@ export class DocumentController {
     try {
       // Check document access first
       await this.documentService.getDocumentById(id, req.user.userId, req.user.role);
-      
+
       const version = await this.documentService.getDocumentVersion(id, parseInt(versionNumber));
       return {
         message: 'Document version retrieved successfully',
@@ -392,18 +430,18 @@ export class DocumentController {
   }
 
   @Get(':id/versions/latest')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get latest document version',
-    description: 'Get the latest version of a document with its S3 URL for file access'
+    description: 'Get the latest version of a document with its S3 URL for file access',
   })
-  @ApiOkResponse({ 
+  @ApiOkResponse({
     description: 'Latest document version retrieved successfully',
     schema: {
       type: 'object',
       properties: {
         message: {
           type: 'string',
-          example: 'Latest document version retrieved successfully'
+          example: 'Latest document version retrieved successfully',
         },
         version: {
           type: 'object',
@@ -412,7 +450,10 @@ export class DocumentController {
             versionNumber: { type: 'number', example: 3 },
             filePath: { type: 'string', example: '/documents/file.pdf' },
             s3Key: { type: 'string', example: 'documents/versions/2024/01/15/file-v3.pdf' },
-            s3Url: { type: 'string', example: 'https://bucket.s3.amazonaws.com/documents/versions/file-v3.pdf' },
+            s3Url: {
+              type: 'string',
+              example: 'https://bucket.s3.amazonaws.com/documents/versions/file-v3.pdf',
+            },
             fileSize: { type: 'number', example: 1024000 },
             checksum: { type: 'string', example: 'a1b2c3d4e5f6...' },
             mimeType: { type: 'string', example: 'application/pdf' },
@@ -424,13 +465,13 @@ export class DocumentController {
                 id: { type: 'string' },
                 email: { type: 'string' },
                 firstName: { type: 'string' },
-                lastName: { type: 'string' }
-              }
-            }
-          }
-        }
-      }
-    }
+                lastName: { type: 'string' },
+              },
+            },
+          },
+        },
+      },
+    },
   })
   async getLatestDocumentVersion(
     @Req() req: { user: { userId: string; role: string } },
@@ -439,7 +480,7 @@ export class DocumentController {
     try {
       // Check document access first
       await this.documentService.getDocumentById(id, req.user.userId, req.user.role);
-      
+
       const version = await this.documentService.getLatestDocumentVersion(id);
       return {
         message: 'Latest document version retrieved successfully',
@@ -455,29 +496,30 @@ export class DocumentController {
   }
 
   @Delete(':id/versions/:versionNumber')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Delete document version',
-    description: 'Delete a specific version of a document. This will remove the version from database and delete the file from S3. Cannot delete the last remaining version.'
+    description:
+      'Delete a specific version of a document. This will remove the version from database and delete the file from S3. Cannot delete the last remaining version.',
   })
-  @ApiOkResponse({ 
+  @ApiOkResponse({
     description: 'Document version deleted successfully',
     schema: {
       type: 'object',
       properties: {
         message: {
           type: 'string',
-          example: 'Document version deleted successfully'
+          example: 'Document version deleted successfully',
         },
         deletedVersion: {
           type: 'object',
           properties: {
             versionNumber: { type: 'number', example: 2 },
             s3Key: { type: 'string', example: 'documents/versions/2024/01/15/file-v2.pdf' },
-            deletedAt: { type: 'string', format: 'date-time' }
-          }
-        }
-      }
-    }
+            deletedAt: { type: 'string', format: 'date-time' },
+          },
+        },
+      },
+    },
   })
   async deleteDocumentVersion(
     @Req() req: { user: { userId: string; role: string } },
@@ -486,18 +528,18 @@ export class DocumentController {
   ) {
     try {
       await this.documentService.deleteDocumentVersion(
-        id, 
-        parseInt(versionNumber), 
-        req.user.userId, 
-        req.user.role
+        id,
+        parseInt(versionNumber),
+        req.user.userId,
+        req.user.role,
       );
-      
+
       return {
         message: 'Document version deleted successfully',
         deletedVersion: {
           versionNumber: parseInt(versionNumber),
-          deletedAt: new Date().toISOString()
-        }
+          deletedAt: new Date().toISOString(),
+        },
       };
     } catch (error) {
       const errorMessage =
@@ -518,7 +560,11 @@ export class DocumentController {
     @Body() createCommentDto: CreateDocumentCommentDto,
   ) {
     try {
-      const comment = await this.documentService.createDocumentComment(id, req.user.userId, createCommentDto);
+      const comment = await this.documentService.createDocumentComment(
+        id,
+        req.user.userId,
+        createCommentDto,
+      );
       return {
         message: 'Comment added successfully',
         comment,
@@ -556,11 +602,12 @@ export class DocumentController {
 
   // ===== DOCUMENT ASSETS =====
   @Post(':id/assets/presigned-url')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Generate presigned URL for document asset upload',
-    description: 'Generate a presigned URL for uploading files to S3. The frontend can use this URL to upload files directly to S3 without going through the backend. After upload, call POST /documents/:id/assets to link the uploaded file to the document.'
+    description:
+      'Generate a presigned URL for uploading files to S3. The frontend can use this URL to upload files directly to S3 without going through the backend. After upload, call POST /documents/:id/assets to link the uploaded file to the document.',
   })
-  @ApiOkResponse({ 
+  @ApiOkResponse({
     description: 'Presigned URL generated successfully',
     schema: {
       type: 'object',
@@ -568,25 +615,27 @@ export class DocumentController {
         presignedUrl: {
           type: 'string',
           description: 'Presigned URL for uploading file to S3',
-          example: 'https://your-bucket.s3.amazonaws.com/documents/2024/01/15/document-file.pdf?X-Amz-Algorithm=...'
+          example:
+            'https://your-bucket.s3.amazonaws.com/documents/2024/01/15/document-file.pdf?X-Amz-Algorithm=...',
         },
         key: {
           type: 'string',
           description: 'S3 object key for the uploaded file',
-          example: 'documents/2024/01/15/document-file.pdf'
+          example: 'documents/2024/01/15/document-file.pdf',
         },
         publicUrl: {
           type: 'string',
           description: 'Public URL to access the uploaded file',
-          example: 'https://your-bucket.s3.amazonaws.com/documents/2024/01/15/document-file.pdf'
+          example: 'https://your-bucket.s3.amazonaws.com/documents/2024/01/15/document-file.pdf',
         },
         message: {
           type: 'string',
           description: 'Success message with next steps',
-          example: 'Upload file to presigned URL, then call POST /documents/:id/assets to link to document'
-        }
-      }
-    }
+          example:
+            'Upload file to presigned URL, then call POST /documents/:id/assets to link to document',
+        },
+      },
+    },
   })
   async generateAssetPresignedUrl(
     @Req() req: { user: { userId: string; role: string } },
@@ -604,7 +653,8 @@ export class DocumentController {
         presignedUrl,
         key,
         publicUrl,
-        message: 'Upload file to presigned URL, then call POST /documents/:id/assets to link to document',
+        message:
+          'Upload file to presigned URL, then call POST /documents/:id/assets to link to document',
       };
     } catch (error) {
       const errorMessage =
@@ -616,32 +666,36 @@ export class DocumentController {
   }
 
   @Post(':id/assets')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Link uploaded file to document',
-    description: 'Link an already uploaded file (via presigned URL) to a document. This creates an asset record in the database.'
+    description:
+      'Link an already uploaded file (via presigned URL) to a document. This creates an asset record in the database.',
   })
-  @ApiOkResponse({ 
+  @ApiOkResponse({
     description: 'File linked to document successfully',
     schema: {
       type: 'object',
       properties: {
         message: {
           type: 'string',
-          example: 'File linked to document successfully'
+          example: 'File linked to document successfully',
         },
         asset: {
           type: 'object',
           properties: {
             id: { type: 'string', example: 'asset-uuid' },
             filename: { type: 'string', example: 'project-requirements.pdf' },
-            s3Url: { type: 'string', example: 'https://bucket.s3.amazonaws.com/documents/file.pdf' },
+            s3Url: {
+              type: 'string',
+              example: 'https://bucket.s3.amazonaws.com/documents/file.pdf',
+            },
             contentType: { type: 'string', example: 'application/pdf' },
             sizeBytes: { type: 'number', example: 1024000 },
-            createdAt: { type: 'string', format: 'date-time' }
-          }
-        }
-      }
-    }
+            createdAt: { type: 'string', format: 'date-time' },
+          },
+        },
+      },
+    },
   })
   async linkAssetToDocument(
     @Req() req: { user: { userId: string; role: string } },
@@ -671,18 +725,18 @@ export class DocumentController {
   }
 
   @Get(':id/assets')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get document assets',
-    description: 'Get all assets (uploaded files) associated with a document'
+    description: 'Get all assets (uploaded files) associated with a document',
   })
-  @ApiOkResponse({ 
+  @ApiOkResponse({
     description: 'Document assets retrieved successfully',
     schema: {
       type: 'object',
       properties: {
         message: {
           type: 'string',
-          example: 'Document assets retrieved successfully'
+          example: 'Document assets retrieved successfully',
         },
         assets: {
           type: 'array',
@@ -691,7 +745,10 @@ export class DocumentController {
             properties: {
               id: { type: 'string', example: 'asset-uuid' },
               filename: { type: 'string', example: 'project-requirements.pdf' },
-              s3Url: { type: 'string', example: 'https://bucket.s3.amazonaws.com/documents/file.pdf' },
+              s3Url: {
+                type: 'string',
+                example: 'https://bucket.s3.amazonaws.com/documents/file.pdf',
+              },
               contentType: { type: 'string', example: 'application/pdf' },
               sizeBytes: { type: 'number', example: 1024000 },
               isCover: { type: 'boolean', example: false },
@@ -702,21 +759,25 @@ export class DocumentController {
                   id: { type: 'string' },
                   email: { type: 'string' },
                   firstName: { type: 'string' },
-                  lastName: { type: 'string' }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+                  lastName: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
   })
   async getDocumentAssets(
     @Req() req: { user: { userId: string; role: string } },
     @Param('id') id: string,
   ) {
     try {
-      const document = await this.documentService.getDocumentById(id, req.user.userId, req.user.role);
+      const document = await this.documentService.getDocumentById(
+        id,
+        req.user.userId,
+        req.user.role,
+      );
       const assets = await this.documentService.getDocumentAssets(id);
       return {
         message: 'Document assets retrieved successfully',
@@ -732,29 +793,30 @@ export class DocumentController {
   }
 
   @Delete(':id/assets/:assetId')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Delete document asset',
-    description: 'Delete a specific asset (attached file) from a document. This will remove the asset from database and delete the file from S3.'
+    description:
+      'Delete a specific asset (attached file) from a document. This will remove the asset from database and delete the file from S3.',
   })
-  @ApiOkResponse({ 
+  @ApiOkResponse({
     description: 'Document asset deleted successfully',
     schema: {
       type: 'object',
       properties: {
         message: {
           type: 'string',
-          example: 'Document asset deleted successfully'
+          example: 'Document asset deleted successfully',
         },
         deletedAsset: {
           type: 'object',
           properties: {
             assetId: { type: 'string', example: 'asset-uuid' },
             filename: { type: 'string', example: 'attachment.pdf' },
-            deletedAt: { type: 'string', format: 'date-time' }
-          }
-        }
-      }
-    }
+            deletedAt: { type: 'string', format: 'date-time' },
+          },
+        },
+      },
+    },
   })
   async deleteDocumentAsset(
     @Req() req: { user: { userId: string; role: string } },
@@ -762,19 +824,14 @@ export class DocumentController {
     @Param('assetId') assetId: string,
   ) {
     try {
-      await this.documentService.deleteDocumentAsset(
-        id, 
-        assetId, 
-        req.user.userId, 
-        req.user.role
-      );
-      
+      await this.documentService.deleteDocumentAsset(id, assetId, req.user.userId, req.user.role);
+
       return {
         message: 'Document asset deleted successfully',
         deletedAsset: {
           assetId,
-          deletedAt: new Date().toISOString()
-        }
+          deletedAt: new Date().toISOString(),
+        },
       };
     } catch (error) {
       const errorMessage =

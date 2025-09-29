@@ -1,4 +1,14 @@
-import type { Document, DocumentVersion, Asset, Tag, Comment, SignatureRequest, DigitalSignature, User, Department } from '@prisma/client';
+import type {
+  Document,
+  DocumentVersion,
+  Asset,
+  Tag,
+  Comment,
+  SignatureRequest,
+  DigitalSignature,
+  User,
+  Department,
+} from '@prisma/client';
 
 export interface DocumentEntity extends Document {
   creator: User;
@@ -48,7 +58,6 @@ export interface DocumentVersionEntity extends DocumentVersion {
   document: Document;
   creator: User;
 }
-
 
 export interface DocumentAssetEntity extends Asset {
   ownerDocument?: Document | null;

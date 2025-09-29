@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import type { DocumentEntity, DocumentVersionEntity, DocumentAssetEntity, DocumentCommentEntity } from '../entities/document.entity';
+import type {
+  DocumentEntity,
+  DocumentVersionEntity,
+  DocumentAssetEntity,
+  DocumentCommentEntity,
+} from '../entities/document.entity';
 import type { Document, DocumentVersion, Asset, Comment, Prisma } from '@prisma/client';
 
 @Injectable()
@@ -57,7 +62,7 @@ export class DocumentRepository {
     take?: number;
   }): Promise<DocumentEntity[]> {
     const { where, orderBy, skip, take } = params;
-    
+
     return this.prisma.document.findMany({
       where,
       orderBy,
@@ -146,11 +151,14 @@ export class DocumentRepository {
     });
   }
 
-  async findVersionByNumber(documentId: string, versionNumber: number): Promise<DocumentVersionEntity | null> {
+  async findVersionByNumber(
+    documentId: string,
+    versionNumber: number,
+  ): Promise<DocumentVersionEntity | null> {
     return this.prisma.documentVersion.findFirst({
-      where: { 
+      where: {
         documentId,
-        versionNumber 
+        versionNumber,
       },
       include: {
         document: true,
@@ -164,7 +172,6 @@ export class DocumentRepository {
       where: { id: versionId },
     });
   }
-
 
   // ===== DOCUMENT ASSETS =====
   async createAsset(data: Prisma.AssetCreateInput): Promise<DocumentAssetEntity> {
@@ -279,20 +286,20 @@ export class DocumentRepository {
   async findUserById(id: string) {
     return this.prisma.user.findUnique({
       where: { id },
-      select: { 
-        id: true, 
-        email: true, 
-        firstName: true, 
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
         lastName: true,
-        departmentId: true 
-      }
+        departmentId: true,
+      },
     });
   }
 
   async findDepartmentById(id: string) {
     return this.prisma.department.findUnique({
       where: { id },
-      select: { id: true, name: true, description: true }
+      select: { id: true, name: true, description: true },
     });
   }
 

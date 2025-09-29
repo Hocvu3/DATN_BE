@@ -36,11 +36,11 @@ import { UpdateSignatureRequestDto } from '../dto/update-signature-request.dto';
 import { GetSignatureRequestsQueryDto } from '../dto/get-signature-requests-query.dto';
 import { SignDocumentDto } from '../dto/sign-document.dto';
 import { UpdateSignatureStatusDto } from '../dto/update-signature-status.dto';
-import type { 
-  SignatureRequestEntity, 
-  DigitalSignatureEntity, 
+import type {
+  SignatureRequestEntity,
+  DigitalSignatureEntity,
   SignatureRequestWithDetails,
-  SignatureStats 
+  SignatureStats,
 } from '../entities/signature.entity';
 
 @ApiTags('Digital Signatures')
@@ -54,7 +54,8 @@ export class SignatureController {
   @Roles('ADMIN', 'MANAGER', 'EMPLOYEE')
   @ApiOperation({
     summary: 'Create signature request',
-    description: 'Create a new signature request for a document. All roles can create signature requests.'
+    description:
+      'Create a new signature request for a document. All roles can create signature requests.',
   })
   @ApiCreatedResponse({
     description: 'Signature request created successfully',
@@ -69,9 +70,9 @@ export class SignatureController {
         reason: { type: 'string', example: 'Document requires approval' },
         document: { type: 'object' },
         requester: { type: 'object' },
-        signatures: { type: 'array', items: { type: 'object' } }
-      }
-    }
+        signatures: { type: 'array', items: { type: 'object' } },
+      },
+    },
   })
   @ApiBadRequestResponse({ description: 'Invalid input data or expiration date in the past' })
   @ApiUnauthorizedResponse({ description: 'Unauthorized' })
@@ -86,7 +87,7 @@ export class SignatureController {
   @Get('requests')
   @ApiOperation({
     summary: 'Get signature requests',
-    description: 'Retrieve a paginated list of signature requests with optional filtering'
+    description: 'Retrieve a paginated list of signature requests with optional filtering',
   })
   @ApiOkResponse({
     description: 'Signature requests retrieved successfully',
@@ -107,37 +108,50 @@ export class SignatureController {
               reason: { type: 'string' },
               document: { type: 'object' },
               requester: { type: 'object' },
-              signatures: { type: 'array', items: { type: 'object' } }
-            }
-          }
+              signatures: { type: 'array', items: { type: 'object' } },
+            },
+          },
         },
         total: { type: 'number' },
         page: { type: 'number' },
-        limit: { type: 'number' }
-      }
-    }
+        limit: { type: 'number' },
+      },
+    },
   })
   @ApiQuery({ name: 'documentId', required: false, description: 'Filter by document ID' })
   @ApiQuery({ name: 'requesterId', required: false, description: 'Filter by requester ID' })
   @ApiQuery({ name: 'status', required: false, enum: ['PENDING', 'SIGNED', 'EXPIRED', 'REJECTED'] })
-  @ApiQuery({ name: 'signatureType', required: false, enum: ['ELECTRONIC', 'DIGITAL', 'BIOMETRIC'] })
+  @ApiQuery({
+    name: 'signatureType',
+    required: false,
+    enum: ['ELECTRONIC', 'DIGITAL', 'BIOMETRIC'],
+  })
   @ApiQuery({ name: 'dateFrom', required: false, description: 'Filter by date from (YYYY-MM-DD)' })
   @ApiQuery({ name: 'dateTo', required: false, description: 'Filter by date to (YYYY-MM-DD)' })
   @ApiQuery({ name: 'page', required: false, description: 'Page number', example: 1 })
   @ApiQuery({ name: 'limit', required: false, description: 'Items per page', example: 10 })
-  @ApiQuery({ name: 'sortBy', required: false, enum: ['requestedAt', 'expiresAt', 'signedAt', 'status'] })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    enum: ['requestedAt', 'expiresAt', 'signedAt', 'status'],
+  })
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'] })
   async getSignatureRequests(
     @Req() req: { user: { userId: string; role: string } },
     @Query() query: GetSignatureRequestsQueryDto,
-  ): Promise<{ requests: SignatureRequestWithDetails[]; total: number; page: number; limit: number }> {
+  ): Promise<{
+    requests: SignatureRequestWithDetails[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
     return this.signatureService.getSignatureRequests(query, req.user.userId, req.user.role);
   }
 
   @Get('requests/pending')
   @ApiOperation({
     summary: 'Get pending signature requests',
-    description: 'Get signature requests that are pending and can be signed by the current user'
+    description: 'Get signature requests that are pending and can be signed by the current user',
   })
   @ApiOkResponse({
     description: 'Pending signature requests retrieved successfully',
@@ -153,10 +167,10 @@ export class SignatureController {
           expiresAt: { type: 'string', format: 'date-time' },
           reason: { type: 'string' },
           document: { type: 'object' },
-          requester: { type: 'object' }
-        }
-      }
-    }
+          requester: { type: 'object' },
+        },
+      },
+    },
   })
   async getPendingSignatureRequests(
     @Req() req: { user: { userId: string; role: string } },
@@ -167,7 +181,7 @@ export class SignatureController {
   @Get('requests/my-requests')
   @ApiOperation({
     summary: 'Get my signature requests',
-    description: 'Get signature requests created by the current user'
+    description: 'Get signature requests created by the current user',
   })
   @ApiOkResponse({
     description: 'User signature requests retrieved successfully',
@@ -185,21 +199,25 @@ export class SignatureController {
           reason: { type: 'string' },
           document: { type: 'object' },
           requester: { type: 'object' },
-          signatures: { type: 'array', items: { type: 'object' } }
-        }
-      }
-    }
+          signatures: { type: 'array', items: { type: 'object' } },
+        },
+      },
+    },
   })
   async getMySignatureRequests(
     @Req() req: { user: { userId: string; role: string } },
   ): Promise<SignatureRequestEntity[]> {
-    return this.signatureService.getSignatureRequestsByRequester(req.user.userId, req.user.userId, req.user.role);
+    return this.signatureService.getSignatureRequestsByRequester(
+      req.user.userId,
+      req.user.userId,
+      req.user.role,
+    );
   }
 
   @Get('requests/:id')
   @ApiOperation({
     summary: 'Get signature request by ID',
-    description: 'Retrieve a specific signature request by its ID'
+    description: 'Retrieve a specific signature request by its ID',
   })
   @ApiParam({ name: 'id', description: 'Signature request ID' })
   @ApiOkResponse({
@@ -216,9 +234,9 @@ export class SignatureController {
         reason: { type: 'string' },
         document: { type: 'object' },
         requester: { type: 'object' },
-        signatures: { type: 'array', items: { type: 'object' } }
-      }
-    }
+        signatures: { type: 'array', items: { type: 'object' } },
+      },
+    },
   })
   @ApiNotFoundResponse({ description: 'Signature request not found' })
   @ApiForbiddenResponse({ description: 'Insufficient permissions' })
@@ -233,7 +251,7 @@ export class SignatureController {
   @Roles('ADMIN', 'MANAGER', 'EMPLOYEE')
   @ApiOperation({
     summary: 'Update signature request',
-    description: 'Update an existing signature request. Only the requester or admin can update.'
+    description: 'Update an existing signature request. Only the requester or admin can update.',
   })
   @ApiParam({ name: 'id', description: 'Signature request ID' })
   @ApiOkResponse({
@@ -249,9 +267,9 @@ export class SignatureController {
         reason: { type: 'string' },
         document: { type: 'object' },
         requester: { type: 'object' },
-        signatures: { type: 'array', items: { type: 'object' } }
-      }
-    }
+        signatures: { type: 'array', items: { type: 'object' } },
+      },
+    },
   })
   @ApiBadRequestResponse({ description: 'Invalid input data or request cannot be updated' })
   @ApiNotFoundResponse({ description: 'Signature request not found' })
@@ -261,14 +279,19 @@ export class SignatureController {
     @Param('id') id: string,
     @Body() updateSignatureRequestDto: UpdateSignatureRequestDto,
   ): Promise<SignatureRequestEntity> {
-    return this.signatureService.updateSignatureRequest(id, updateSignatureRequestDto, req.user.userId, req.user.role);
+    return this.signatureService.updateSignatureRequest(
+      id,
+      updateSignatureRequestDto,
+      req.user.userId,
+      req.user.role,
+    );
   }
 
   @Put('requests/:id/status')
   @Roles('ADMIN', 'MANAGER', 'EMPLOYEE')
   @ApiOperation({
     summary: 'Update signature request status',
-    description: 'Update the status of a signature request (approve, reject, etc.)'
+    description: 'Update the status of a signature request (approve, reject, etc.)',
   })
   @ApiParam({ name: 'id', description: 'Signature request ID' })
   @ApiOkResponse({
@@ -285,9 +308,9 @@ export class SignatureController {
         reason: { type: 'string' },
         document: { type: 'object' },
         requester: { type: 'object' },
-        signatures: { type: 'array', items: { type: 'object' } }
-      }
-    }
+        signatures: { type: 'array', items: { type: 'object' } },
+      },
+    },
   })
   @ApiBadRequestResponse({ description: 'Invalid status or request cannot be updated' })
   @ApiNotFoundResponse({ description: 'Signature request not found' })
@@ -297,14 +320,19 @@ export class SignatureController {
     @Param('id') id: string,
     @Body() updateSignatureStatusDto: UpdateSignatureStatusDto,
   ): Promise<SignatureRequestEntity> {
-    return this.signatureService.updateSignatureStatus(id, updateSignatureStatusDto, req.user.userId, req.user.role);
+    return this.signatureService.updateSignatureStatus(
+      id,
+      updateSignatureStatusDto,
+      req.user.userId,
+      req.user.role,
+    );
   }
 
   @Post('requests/:id/approve')
   @Roles('ADMIN')
   @ApiOperation({
     summary: 'Approve signature request',
-    description: 'Approve a signature request. Only administrators can approve requests.'
+    description: 'Approve a signature request. Only administrators can approve requests.',
   })
   @ApiParam({ name: 'id', description: 'Signature request ID' })
   @ApiOkResponse({
@@ -321,9 +349,9 @@ export class SignatureController {
         reason: { type: 'string' },
         document: { type: 'object' },
         requester: { type: 'object' },
-        signatures: { type: 'array', items: { type: 'object' } }
-      }
-    }
+        signatures: { type: 'array', items: { type: 'object' } },
+      },
+    },
   })
   @ApiNotFoundResponse({ description: 'Signature request not found' })
   @ApiForbiddenResponse({ description: 'Only administrators can approve requests' })
@@ -338,7 +366,8 @@ export class SignatureController {
   @Roles('ADMIN')
   @ApiOperation({
     summary: 'Reject signature request',
-    description: 'Reject a signature request with a reason. Only administrators can reject requests.'
+    description:
+      'Reject a signature request with a reason. Only administrators can reject requests.',
   })
   @ApiParam({ name: 'id', description: 'Signature request ID' })
   @ApiOkResponse({
@@ -354,9 +383,9 @@ export class SignatureController {
         reason: { type: 'string' },
         document: { type: 'object' },
         requester: { type: 'object' },
-        signatures: { type: 'array', items: { type: 'object' } }
-      }
-    }
+        signatures: { type: 'array', items: { type: 'object' } },
+      },
+    },
   })
   @ApiNotFoundResponse({ description: 'Signature request not found' })
   @ApiForbiddenResponse({ description: 'Only administrators can reject requests' })
@@ -365,7 +394,12 @@ export class SignatureController {
     @Param('id') id: string,
     @Body() body: { reason: string },
   ): Promise<SignatureRequestEntity> {
-    return this.signatureService.rejectSignatureRequest(id, body.reason, req.user.userId, req.user.role);
+    return this.signatureService.rejectSignatureRequest(
+      id,
+      body.reason,
+      req.user.userId,
+      req.user.role,
+    );
   }
 
   @Delete('requests/:id')
@@ -373,7 +407,7 @@ export class SignatureController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Delete signature request',
-    description: 'Delete a signature request. Only the requester or admin can delete.'
+    description: 'Delete a signature request. Only the requester or admin can delete.',
   })
   @ApiParam({ name: 'id', description: 'Signature request ID' })
   @ApiResponse({ status: 204, description: 'Signature request deleted successfully' })
@@ -392,7 +426,8 @@ export class SignatureController {
   @Roles('ADMIN', 'MANAGER', 'EMPLOYEE')
   @ApiOperation({
     summary: 'Sign document',
-    description: 'Sign a document using digital signature. User must have permission to sign the document.'
+    description:
+      'Sign a document using digital signature. User must have permission to sign the document.',
   })
   @ApiParam({ name: 'id', description: 'Signature request ID' })
   @ApiCreatedResponse({
@@ -407,9 +442,9 @@ export class SignatureController {
         ipAddress: { type: 'string' },
         userAgent: { type: 'string' },
         request: { type: 'object' },
-        signer: { type: 'object' }
-      }
-    }
+        signer: { type: 'object' },
+      },
+    },
   })
   @ApiBadRequestResponse({ description: 'Invalid signature data or request cannot be signed' })
   @ApiNotFoundResponse({ description: 'Signature request not found' })
@@ -426,7 +461,7 @@ export class SignatureController {
   @Get('signatures/:id')
   @ApiOperation({
     summary: 'Get digital signature by ID',
-    description: 'Retrieve a specific digital signature by its ID'
+    description: 'Retrieve a specific digital signature by its ID',
   })
   @ApiParam({ name: 'id', description: 'Digital signature ID' })
   @ApiOkResponse({
@@ -441,9 +476,9 @@ export class SignatureController {
         ipAddress: { type: 'string' },
         userAgent: { type: 'string' },
         request: { type: 'object' },
-        signer: { type: 'object' }
-      }
-    }
+        signer: { type: 'object' },
+      },
+    },
   })
   @ApiNotFoundResponse({ description: 'Digital signature not found' })
   @ApiForbiddenResponse({ description: 'Insufficient permissions' })
@@ -457,7 +492,7 @@ export class SignatureController {
   @Get('requests/:id/signatures')
   @ApiOperation({
     summary: 'Get signatures for request',
-    description: 'Get all digital signatures for a specific signature request'
+    description: 'Get all digital signatures for a specific signature request',
   })
   @ApiParam({ name: 'id', description: 'Signature request ID' })
   @ApiOkResponse({
@@ -473,10 +508,10 @@ export class SignatureController {
           signedAt: { type: 'string', format: 'date-time' },
           ipAddress: { type: 'string' },
           userAgent: { type: 'string' },
-          signer: { type: 'object' }
-        }
-      }
-    }
+          signer: { type: 'object' },
+        },
+      },
+    },
   })
   @ApiNotFoundResponse({ description: 'Signature request not found' })
   @ApiForbiddenResponse({ description: 'Insufficient permissions' })
@@ -484,7 +519,11 @@ export class SignatureController {
     @Req() req: { user: { userId: string; role: string } },
     @Param('id') id: string,
   ): Promise<DigitalSignatureEntity[]> {
-    return this.signatureService.getDigitalSignaturesByRequestId(id, req.user.userId, req.user.role);
+    return this.signatureService.getDigitalSignaturesByRequestId(
+      id,
+      req.user.userId,
+      req.user.role,
+    );
   }
 
   // ===== STATISTICS =====
@@ -492,7 +531,8 @@ export class SignatureController {
   @Roles('ADMIN')
   @ApiOperation({
     summary: 'Get signature statistics',
-    description: 'Get statistics about signature requests. Only administrators can access this endpoint.'
+    description:
+      'Get statistics about signature requests. Only administrators can access this endpoint.',
   })
   @ApiOkResponse({
     description: 'Signature statistics retrieved successfully',
@@ -503,9 +543,9 @@ export class SignatureController {
         pendingRequests: { type: 'number' },
         signedRequests: { type: 'number' },
         expiredRequests: { type: 'number' },
-        rejectedRequests: { type: 'number' }
-      }
-    }
+        rejectedRequests: { type: 'number' },
+      },
+    },
   })
   @ApiForbiddenResponse({ description: 'Only administrators can view statistics' })
   async getSignatureStats(
@@ -519,7 +559,8 @@ export class SignatureController {
   @Roles('ADMIN')
   @ApiOperation({
     summary: 'Mark expired requests',
-    description: 'Mark expired signature requests as expired. Only administrators can run this operation.'
+    description:
+      'Mark expired signature requests as expired. Only administrators can run this operation.',
   })
   @ApiOkResponse({
     description: 'Expired requests marked successfully',
@@ -527,9 +568,9 @@ export class SignatureController {
       type: 'object',
       properties: {
         message: { type: 'string', example: '5 expired requests marked' },
-        count: { type: 'number', example: 5 }
-      }
-    }
+        count: { type: 'number', example: 5 },
+      },
+    },
   })
   @ApiForbiddenResponse({ description: 'Only administrators can run cleanup operations' })
   async markExpiredRequests(
