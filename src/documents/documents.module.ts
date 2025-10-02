@@ -11,4 +11,4 @@ import { DocumentController } from './controllers/document.controller';
   providers: [DocumentRepository, DocumentService],
   exports: [DocumentService, DocumentRepository],
 })
-export class DocumentsModule {}
+export class DocumentsModule { }

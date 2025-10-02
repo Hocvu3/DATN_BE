@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 // import { v4 as uuidv4 } from 'uuid'; // Comment out static import
 
@@ -73,5 +73,62 @@ export class S3Service {
     contentType: string,
   ): Promise<{ presignedUrl: string; key: string; publicUrl: string }> {
     return this.generatePresignedUrl(fileName, contentType, 'avatars');
+  }
+
+  async generateCoverPresignedUrl(
+    fileName: string,
+    contentType: string,
+  ): Promise<{ presignedUrl: string; key: string; publicUrl: string }> {
+    this.logger.log(`Generating cover presigned URL for file: ${fileName}`);
+    return this.generatePresignedUrl(fileName, contentType, 'covers');
+  }
+
+  async generateDocumentPresignedUrl(
+    fileName: string,
+    contentType: string,
+  ): Promise<{ presignedUrl: string; key: string; publicUrl: string }> {
+    this.logger.log(`Generating document presigned URL for file: ${fileName}`);
+    return this.generatePresignedUrl(fileName, contentType, 'documents');
+  }
+
+  async getFile(key: string): Promise<{ body: any; contentType: string; contentLength: number }> {
+    this.logger.log(`Getting file from S3: ${key}`);
+
+    try {
+      const command = new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+      });
+
+      const response = await this.s3Client.send(command);
+
+      return {
+        body: response.Body,
+        contentType: response.ContentType || 'application/octet-stream',
+        contentLength: response.ContentLength || 0,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get file from S3: ${key}`, error);
+      throw error;
+    }
+  }
+
+  async generateSignedDownloadUrl(key: string, expiresIn: number = 3600): Promise<string> {
+    this.logger.log(`Generating signed download URL for: ${key}`);
+
+    try {
+      const command = new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+      });
+
+      const signedUrl = await getSignedUrl(this.s3Client, command, { expiresIn });
+
+      this.logger.log(`Signed download URL generated for: ${key}`);
+      return signedUrl;
+    } catch (error) {
+      this.logger.error(`Failed to generate signed download URL for: ${key}`, error);
+      throw error;
+    }
   }
 }

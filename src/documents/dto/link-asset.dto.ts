@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, Min, IsNotEmpty } from 'class-validator';
+import { IsString, IsNumber, IsOptional, Min, IsNotEmpty, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class LinkAssetDto {
@@ -35,4 +35,14 @@ export class LinkAssetDto {
   @IsNumber()
   @Min(1)
   sizeBytes?: number;
+
+  @ApiProperty({
+    example: false,
+    description: 'Mark this asset as cover image',
+    required: false,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isCover?: boolean = false;
 }

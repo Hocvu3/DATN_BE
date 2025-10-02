@@ -4,7 +4,6 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
-  UnauthorizedException,
   ForbiddenException,
 } from '@nestjs/common';
 import { DocumentRepository } from '../repositories/document.repository';
@@ -14,13 +13,13 @@ import type {
   DocumentVersionEntity,
   DocumentCommentEntity,
 } from '../entities/document.entity';
-import type { Document } from '@prisma/client';
 import { DocumentStatus, SecurityLevel } from '@prisma/client';
 import { CreateDocumentDto } from '../dto/create-document.dto';
 import { UpdateDocumentDto } from '../dto/update-document.dto';
 import { CreateDocumentVersionDto } from '../dto/create-document-version.dto';
 import { CreateDocumentCommentDto } from '../dto/create-document-comment.dto';
 import { GetDocumentsQueryDto } from '../dto/get-documents-query.dto';
+import { IAssetData } from '../interfaces/document-file.interface';
 
 @Injectable()
 export class DocumentService {
@@ -29,7 +28,24 @@ export class DocumentService {
   constructor(
     private readonly documentRepository: DocumentRepository,
     private readonly s3Service: S3Service,
-  ) {}
+  ) { }
+
+  // ===== FILE VALIDATION METHODS =====
+  private validateImageFile(contentType: string): boolean {
+    const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    return allowedImageTypes.includes(contentType.toLowerCase());
+  }
+
+  private validateDocumentFile(contentType: string): boolean {
+    const allowedDocumentTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/plain',
+      'application/rtf',
+    ];
+    return allowedDocumentTypes.includes(contentType.toLowerCase());
+  }
 
   // ===== DOCUMENT CRUD =====
   async createDocument(
@@ -299,7 +315,7 @@ export class DocumentService {
       resourceId: id,
       user: { connect: { id: userId } },
       document: { connect: { id: id } },
-      details: { changes: JSON.parse(JSON.stringify(updateDocumentDto)) },
+      details: { changes: updateDocumentDto as Partial<UpdateDocumentDto> },
     });
 
     this.logger.log(`Document updated: ${id} by ${userId}`);
@@ -313,7 +329,7 @@ export class DocumentService {
     }
 
     // Check permissions
-    await this.checkDocumentDeletePermission(document, userId, userRole);
+    this.checkDocumentDeletePermission(document, userId, userRole);
 
     // Delete document (cascade will handle related records)
     await this.documentRepository.delete(id);
@@ -600,11 +616,11 @@ export class DocumentService {
     throw new ForbiddenException('You do not have permission to update this document');
   }
 
-  private async checkDocumentDeletePermission(
+  private checkDocumentDeletePermission(
     document: DocumentEntity,
     userId: string,
     userRole: string,
-  ): Promise<void> {
+  ) {
     if (userRole !== 'ADMIN') {
       throw new ForbiddenException('Only administrators can delete documents');
     }
@@ -747,5 +763,122 @@ export class DocumentService {
       this.logger.warn(`Failed to extract S3 key from URL: ${s3Url}`, error);
       return null;
     }
+  }
+
+  // ===== ENHANCED ASSET MANAGEMENT WITH COVER SUPPORT =====
+  async linkDocumentAssetWithCover(documentId: string, userId: string, assetData: IAssetData) {
+    // Check if document exists
+    const document = await this.documentRepository.findById(documentId);
+    if (!document) {
+      throw new NotFoundException('Document not found');
+    }
+
+    // Check access permissions
+    await this.checkDocumentAccess(document, userId, 'ADMIN');
+
+    // Get user info for department
+    const user = await this.documentRepository.findUserById(userId);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Validate file types
+    if (assetData.isCover) {
+      const isValidImage = this.validateImageFile(assetData.contentType);
+      if (!isValidImage) {
+        throw new BadRequestException('Invalid cover image type');
+      }
+    } else {
+      const isValidDocument = this.validateDocumentFile(assetData.contentType);
+      if (!isValidDocument) {
+        throw new BadRequestException('Invalid document file type');
+      }
+    }
+
+    // Create asset record
+    const asset = await this.documentRepository.createAsset({
+      filename: assetData.filename,
+      s3Url: `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${assetData.s3Key}`,
+      contentType: assetData.contentType,
+      sizeBytes: assetData.sizeBytes ? BigInt(assetData.sizeBytes) : null,
+      isCover: assetData.isCover || false,
+      ownerDocument: { connect: { id: documentId } },
+      uploadedBy: { connect: { id: userId } },
+      department: user.departmentId ? { connect: { id: user.departmentId } } : undefined,
+    });
+
+    // Create audit log
+    await this.documentRepository.createAuditLog({
+      action: assetData.isCover ? 'UPLOAD_COVER' : 'UPLOAD_ASSET',
+      resource: 'Asset',
+      resourceId: asset.id,
+      user: { connect: { id: userId } },
+      document: { connect: { id: documentId } },
+      details: {
+        filename: asset.filename,
+        s3Key: assetData.s3Key,
+        contentType: asset.contentType,
+        isCover: asset.isCover,
+      },
+    });
+
+    this.logger.log(
+      `${assetData.isCover ? 'Cover image' : 'Asset'} linked to document: ${asset.id} for document ${documentId}`,
+    );
+    return asset;
+  }
+
+  async getDocumentCover(documentId: string) {
+    const document = await this.documentRepository.findById(documentId);
+    if (!document) {
+      throw new NotFoundException('Document not found');
+    }
+
+    const assets = await this.documentRepository.findAssetsByDocumentId(documentId);
+    const coverAsset = assets.find(asset => asset.isCover === true);
+
+    if (!coverAsset) {
+      throw new NotFoundException('No cover image found for this document');
+    }
+
+    return coverAsset;
+  }
+
+  async updateDocumentCover(
+    documentId: string,
+    userId: string,
+    userRole: string,
+    newCoverData: IAssetData,
+  ) {
+    // Check if document exists and user has permissions
+    const document = await this.documentRepository.findById(documentId);
+    if (!document) {
+      throw new NotFoundException('Document not found');
+    }
+
+    await this.checkDocumentUpdatePermission(document, userId, userRole);
+
+    // Validate cover image
+    const isValidImage = this.validateImageFile(newCoverData.contentType);
+    if (!isValidImage) {
+      throw new BadRequestException('Invalid cover image type');
+    }
+
+    // Find existing cover
+    const assets = await this.documentRepository.findAssetsByDocumentId(documentId);
+    const existingCover = assets.find(asset => asset.isCover === true);
+
+    // Delete old cover if exists
+    if (existingCover) {
+      await this.deleteDocumentAsset(documentId, existingCover.id, userId, userRole);
+    }
+
+    // Create new cover
+    const coverData: IAssetData = {
+      ...newCoverData,
+      isCover: true,
+    };
+
+    return this.linkDocumentAssetWithCover(documentId, userId, coverData);
   }
 }

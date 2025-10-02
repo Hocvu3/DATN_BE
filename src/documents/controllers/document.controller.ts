@@ -11,8 +11,12 @@ import {
   Req,
   BadRequestException,
   UnauthorizedException,
+  Res,
+  StreamableFile,
+  Logger,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
+import type { Response } from 'express';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse } from '@nestjs/swagger';
 import { DocumentService } from '../services/document.service';
 import { S3Service } from '../../s3/s3.service';
@@ -23,16 +27,20 @@ import { CreateDocumentCommentDto } from '../dto/create-document-comment.dto';
 import { GetDocumentsQueryDto } from '../dto/get-documents-query.dto';
 import { PresignedUrlDto } from '../dto/presigned-url.dto';
 import { LinkAssetDto } from '../dto/link-asset.dto';
+import { LinkCoverAssetDto } from '../dto/link-cover-asset.dto';
+import { Public } from '../../auth/decorators/public.decorator';
 
 @ApiTags('Documents')
 @Controller('documents')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth('access-token')
 export class DocumentController {
+  private readonly logger = new Logger(DocumentController.name);
+
   constructor(
     private readonly documentService: DocumentService,
     private readonly s3Service: S3Service,
-  ) {}
+  ) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new document' })
@@ -64,17 +72,17 @@ export class DocumentController {
           },
           approver: document.approver
             ? {
-                id: document.approver.id,
-                email: document.approver.email,
-                firstName: document.approver.firstName,
-                lastName: document.approver.lastName,
-              }
+              id: document.approver.id,
+              email: document.approver.email,
+              firstName: document.approver.firstName,
+              lastName: document.approver.lastName,
+            }
             : null,
           department: document.department
             ? {
-                id: document.department.id,
-                name: document.department.name,
-              }
+              id: document.department.id,
+              name: document.department.name,
+            }
             : null,
           createdAt: document.createdAt,
           updatedAt: document.updatedAt,
@@ -643,10 +651,14 @@ export class DocumentController {
     @Body() body: PresignedUrlDto,
   ) {
     try {
-      const { presignedUrl, key, publicUrl } = await this.s3Service.generatePresignedUrl(
+
+      // Check if document exists
+      await this.documentService.getDocumentById(id, req.user.userId, req.user.role);
+
+
+      const { presignedUrl, key, publicUrl } = await this.s3Service.generateDocumentPresignedUrl(
         body.fileName,
         body.contentType,
-        'documents',
       );
 
       return {
@@ -655,6 +667,78 @@ export class DocumentController {
         publicUrl,
         message:
           'Upload file to presigned URL, then call POST /documents/:id/assets to link to document',
+      };
+    } catch (error) {
+      const errorMessage =
+        typeof error === 'object' && error !== null && 'message' in error
+          ? (error as { message: string }).message
+          : 'An error occurred';
+      throw new BadRequestException(errorMessage);
+    }
+  }
+
+  @Post(':id/assets/cover/presigned-url')
+  @ApiOperation({
+    summary: 'Generate presigned URL for document cover image upload',
+    description:
+      'Generate a presigned URL for uploading cover images to S3. The frontend can use this URL to upload cover images directly to S3 without going through the backend. After upload, call POST /documents/:id/assets/cover to link the uploaded cover image to the document.',
+  })
+  @ApiOkResponse({
+    description: 'Presigned URL generated successfully for cover image',
+    schema: {
+      type: 'object',
+      properties: {
+        presignedUrl: {
+          type: 'string',
+          description: 'Presigned URL for uploading cover image to S3',
+          example:
+            'https://your-bucket.s3.amazonaws.com/documents/covers/2024/01/15/cover-image.jpg?X-Amz-Algorithm=...',
+        },
+        key: {
+          type: 'string',
+          description: 'S3 object key for the uploaded cover image',
+          example: 'documents/covers/2024/01/15/cover-image.jpg',
+        },
+        publicUrl: {
+          type: 'string',
+          description: 'Public URL to access the uploaded cover image',
+          example: 'https://your-bucket.s3.amazonaws.com/documents/covers/2024/01/15/cover-image.jpg',
+        },
+        message: {
+          type: 'string',
+          description: 'Success message with next steps',
+          example:
+            'Upload cover image to presigned URL, then call POST /documents/:id/assets/cover to link to document',
+        },
+      },
+    },
+  })
+  async generateCoverPresignedUrl(
+    @Req() req: { user: { userId: string; role: string } },
+    @Param('id') id: string,
+    @Body() body: PresignedUrlDto,
+  ) {
+    try {
+      // Validate that it's an image
+      if (!body.contentType.startsWith('image/')) {
+        throw new BadRequestException('Cover files must be image files');
+      }
+
+      // Check if document exists
+      await this.documentService.getDocumentById(id, req.user.userId, req.user.role);
+
+      // Generate presigned URL for cover upload
+      const { presignedUrl, key, publicUrl } = await this.s3Service.generateCoverPresignedUrl(
+        body.fileName,
+        body.contentType,
+      );
+
+      return {
+        presignedUrl,
+        key,
+        publicUrl,
+        message:
+          'Upload cover image to presigned URL, then call POST /documents/:id/assets/cover to link to document',
       };
     } catch (error) {
       const errorMessage =
@@ -691,6 +775,7 @@ export class DocumentController {
             },
             contentType: { type: 'string', example: 'application/pdf' },
             sizeBytes: { type: 'number', example: 1024000 },
+            isCover: { type: 'boolean', example: false },
             createdAt: { type: 'string', format: 'date-time' },
           },
         },
@@ -703,16 +788,167 @@ export class DocumentController {
     @Body() body: LinkAssetDto,
   ) {
     try {
-      const asset = await this.documentService.linkAssetToDocument(id, req.user.userId, body);
+      // Use the enhanced service method that supports cover images
+      const asset = await this.documentService.linkDocumentAssetWithCover(id, req.user.userId, {
+        s3Key: body.s3Key,
+        filename: body.filename,
+        contentType: body.contentType,
+        sizeBytes: body.sizeBytes,
+        isCover: body.isCover || false,
+      });
+
       return {
-        message: 'File linked to document successfully',
+        message: body.isCover ? 'Cover image linked to document successfully' : 'File linked to document successfully',
         asset: {
           id: asset.id,
           filename: asset.filename,
           s3Url: asset.s3Url,
           contentType: asset.contentType,
           sizeBytes: asset.sizeBytes ? Number(asset.sizeBytes) : null,
+          isCover: asset.isCover,
           createdAt: asset.createdAt,
+        },
+      };
+    } catch (error) {
+      const errorMessage =
+        typeof error === 'object' && error !== null && 'message' in error
+          ? (error as { message: string }).message
+          : 'An error occurred';
+      throw new BadRequestException(errorMessage);
+    }
+  }
+
+  @Post(':id/assets/cover')
+  @ApiOperation({
+    summary: 'Link uploaded cover image to document',
+    description:
+      'Link an already uploaded cover image (via presigned URL) to a document. This creates a cover asset record in the database and marks it as the document cover.',
+  })
+  @ApiOkResponse({
+    description: 'Cover image linked to document successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          example: 'Cover image linked to document successfully',
+        },
+        asset: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', example: 'asset-uuid' },
+            filename: { type: 'string', example: 'cover-image.jpg' },
+            s3Url: {
+              type: 'string',
+              example: 'https://bucket.s3.amazonaws.com/documents/covers/cover-image.jpg',
+            },
+            contentType: { type: 'string', example: 'image/jpeg' },
+            sizeBytes: { type: 'number', example: 512000 },
+            isCover: { type: 'boolean', example: true },
+            createdAt: { type: 'string', format: 'date-time' },
+          },
+        },
+      },
+    },
+  })
+  async linkAssetCoverToDocument(
+    @Req() req: { user: { userId: string; role: string } },
+    @Param('id') id: string,
+    @Body() body: LinkCoverAssetDto,
+  ) {
+    try {
+      // Validate that it's an image
+      if (!body.contentType.startsWith('image/')) {
+        throw new BadRequestException('Cover asset must be an image file');
+      }
+
+      // Use the enhanced service method for cover images
+      const asset = await this.documentService.linkDocumentAssetWithCover(id, req.user.userId, {
+        s3Key: body.s3Key,
+        filename: body.filename,
+        contentType: body.contentType,
+        sizeBytes: body.sizeBytes,
+        isCover: true, // Always true for cover endpoint
+      });
+
+      return {
+        message: 'Cover image linked to document successfully',
+        asset: {
+          id: asset.id,
+          filename: asset.filename,
+          s3Url: asset.s3Url,
+          contentType: asset.contentType,
+          sizeBytes: asset.sizeBytes ? Number(asset.sizeBytes) : null,
+          isCover: asset.isCover,
+          createdAt: asset.createdAt,
+        },
+      };
+    } catch (error) {
+      const errorMessage =
+        typeof error === 'object' && error !== null && 'message' in error
+          ? (error as { message: string }).message
+          : 'An error occurred';
+      throw new BadRequestException(errorMessage);
+    }
+  }
+
+  @Get(':id/cover')
+  @ApiOperation({
+    summary: 'Get document cover image',
+    description: 'Get the cover image of a document if exists',
+  })
+  @ApiOkResponse({
+    description: 'Document cover retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          example: 'Document cover retrieved successfully',
+        },
+        cover: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', example: 'asset-uuid' },
+            filename: { type: 'string', example: 'cover-image.jpg' },
+            s3Url: {
+              type: 'string',
+              example: 'https://bucket.s3.amazonaws.com/documents/covers/cover-image.jpg',
+            },
+            contentType: { type: 'string', example: 'image/jpeg' },
+            sizeBytes: { type: 'number', example: 512000 },
+            createdAt: { type: 'string', format: 'date-time' },
+          },
+        },
+      },
+    },
+  })
+  async getDocumentCover(
+    @Req() req: { user: { userId: string; role: string } },
+    @Param('id') id: string,
+  ) {
+    try {
+      // Check document access first
+      await this.documentService.getDocumentById(id, req.user.userId, req.user.role);
+
+      const cover = await this.documentService.getDocumentCover(id);
+
+      if (!cover) {
+        return {
+          message: 'No cover image found for this document',
+          cover: null,
+        };
+      }
+
+      return {
+        message: 'Document cover retrieved successfully',
+        cover: {
+          id: cover.id,
+          filename: cover.filename,
+          s3Url: cover.s3Url,
+          contentType: cover.contentType,
+          sizeBytes: cover.sizeBytes ? Number(cover.sizeBytes) : null,
+          createdAt: cover.createdAt,
         },
       };
     } catch (error) {
@@ -839,6 +1075,108 @@ export class DocumentController {
           ? (error as { message: string }).message
           : 'An error occurred';
       throw new BadRequestException(errorMessage);
+    }
+  }
+
+  // ===== FILE SERVING APIs =====
+  @Get('files/view/:keyPath')
+  @ApiOperation({
+    summary: 'View file from S3',
+    description: 'Stream file content from S3 storage through backend to display in browser. Requires authentication.',
+  })
+  async viewFile(
+    @Req() req: { user: { userId: string; role: string } },
+    @Param('keyPath') keyPath: string,
+    @Res() res: Response,
+  ) {
+    try {
+      const key = decodeURIComponent(keyPath);
+      this.logger.log(`Viewing file: ${key}`);
+
+      const fileData = await this.s3Service.getFile(key);
+
+      // Extract filename and ensure it's properly formatted
+      const filename = key.split('/').pop() || 'document.pdf';
+      this.logger.log(`View - Key: ${key}, Extracted filename: ${filename}`);
+
+      // Get buffer
+      let buffer: Buffer;
+      if (Buffer.isBuffer(fileData.body)) {
+        buffer = fileData.body;
+      } else {
+        const chunks: Buffer[] = [];
+        for await (const chunk of fileData.body as any) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        buffer = Buffer.concat(chunks);
+      }
+
+      this.logger.log(`View - Buffer size: ${buffer.length}`);
+
+      // Set headers and send buffer directly
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Length', buffer.length);
+      res.setHeader('Content-Disposition', 'inline');
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Cache-Control', 'no-cache');
+
+      // Send the buffer directly
+      res.send(buffer);
+
+    } catch (error) {
+      this.logger.error(`Failed to serve file: ${keyPath}`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      res.status(400).json({ error: `File not found: ${errorMessage}` });
+    }
+  }
+
+  @Get('files/download/:keyPath')
+  @ApiOperation({
+    summary: 'Download file from S3',
+    description: 'Download file from S3 storage through backend with proper headers. Requires authentication.',
+  })
+  async downloadFile(
+    @Req() req: { user: { userId: string; role: string } },
+    @Param('keyPath') keyPath: string,
+    @Res() res: Response,
+  ) {
+    try {
+      const key = decodeURIComponent(keyPath);
+      this.logger.log(`Downloading file: ${key}`);
+
+      const fileData = await this.s3Service.getFile(key);
+
+      // Extract filename and ensure it's properly formatted
+      const filename = key.split('/').pop() || 'download.pdf';
+      this.logger.log(`Download - Key: ${key}, Extracted filename: ${filename}`);
+
+      // Get buffer
+      let buffer: Buffer;
+      if (Buffer.isBuffer(fileData.body)) {
+        buffer = fileData.body;
+      } else {
+        const chunks: Buffer[] = [];
+        for await (const chunk of fileData.body as any) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        buffer = Buffer.concat(chunks);
+      }
+
+      this.logger.log(`Download - Buffer size: ${buffer.length}`);
+
+      // Set headers and send buffer directly
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Length', buffer.length);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Cache-Control', 'no-cache');
+
+      // Send the buffer directly
+      res.send(buffer);
+
+    } catch (error) {
+      this.logger.error(`Failed to download file: ${keyPath}`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      res.status(400).json({ error: `File not found: ${errorMessage}` });
     }
   }
 }
