@@ -243,10 +243,20 @@ export class DocumentService {
       this.documentRepository.count(countWhere),
     ]);
 
+    const documentsWithCovers = await Promise.all(
+      documents.map(async (doc) => {
+        const cover = await this.getDocumentCover(doc.id);
+        return {
+          ...doc,
+          cover,
+        };
+      })
+    );
+
     const totalPages = Math.ceil(total / limit);
 
     return {
-      documents,
+      documents: documentsWithCovers,
       total,
       page,
       limit,
@@ -256,6 +266,7 @@ export class DocumentService {
 
   async getDocumentById(id: string, userId: string, userRole: string): Promise<DocumentEntity> {
     const document = await this.documentRepository.findById(id);
+
     if (!document) {
       throw new NotFoundException('Document not found');
     }
@@ -263,7 +274,17 @@ export class DocumentService {
     // Check access permissions
     await this.checkDocumentAccess(document, userId, userRole);
 
-    return document;
+    // Try to get document cover if available
+    try {
+      const cover = await this.getDocumentCover(id);
+      return {
+        ...document,
+        cover
+      };
+    } catch (error) {
+      // No cover found, continue without it
+      return document;
+    }
   }
 
   async updateDocument(
@@ -288,6 +309,11 @@ export class DocumentService {
       }
     }
 
+    // Update tags first if provided
+    if (updateDocumentDto.tags !== undefined) {
+      await this.updateDocumentTags(id, updateDocumentDto.tags);
+    }
+
     // Update document
     const updatedDocument = await this.documentRepository.update(id, {
       title: updateDocumentDto.title,
@@ -303,11 +329,6 @@ export class DocumentService {
         : undefined,
     });
 
-    // Update tags if provided
-    if (updateDocumentDto.tags) {
-      await this.updateDocumentTags(id, updateDocumentDto.tags);
-    }
-
     // Create audit log
     await this.documentRepository.createAuditLog({
       action: 'UPDATE',
@@ -319,7 +340,13 @@ export class DocumentService {
     });
 
     this.logger.log(`Document updated: ${id} by ${userId}`);
-    return updatedDocument;
+
+    // Return fresh document data with updated tags
+    const freshDocument = await this.documentRepository.findById(id);
+    if (!freshDocument) {
+      throw new NotFoundException('Document not found after update');
+    }
+    return freshDocument;
   }
 
   async deleteDocument(id: string, userId: string, userRole: string): Promise<void> {
@@ -544,29 +571,28 @@ export class DocumentService {
   }
 
   // ===== DOCUMENT TAGS =====
-  async addTagsToDocument(documentId: string, tagNames: string[]): Promise<void> {
-    for (const tagName of tagNames) {
-      // Find or create tag
-      const tag = await this.documentRepository.findById(tagName); // This should be a tag lookup
-      if (!tag) {
-        // Create tag if it doesn't exist
-        // This would need a tag service/repository
-        continue;
+  async addTagsToDocument(documentId: string, tagIds: string[]): Promise<void> {
+    for (const tagId of tagIds) {
+      try {
+        await this.documentRepository.addTag(documentId, tagId);
+      } catch (error) {
+        // Log error but continue with other tags
+        this.logger.warn(`Failed to add tag ${tagId} to document ${documentId}:`, error);
       }
-
-      await this.documentRepository.addTag(documentId, tag.id);
     }
   }
 
-  async updateDocumentTags(documentId: string, tagNames: string[]): Promise<void> {
+  async updateDocumentTags(documentId: string, tagIds: string[]): Promise<void> {
     // Remove all existing tags
     const existingTags = await this.documentRepository.findTagsByDocumentId(documentId);
     for (const tag of existingTags) {
       await this.documentRepository.removeTag(documentId, tag.tagId);
     }
 
-    // Add new tags
-    await this.addTagsToDocument(documentId, tagNames);
+    // Add new tags (now expecting tag IDs instead of tag names)
+    if (tagIds && tagIds.length > 0) {
+      await this.addTagsToDocument(documentId, tagIds);
+    }
   }
 
   // ===== PERMISSION CHECKS =====
@@ -661,7 +687,7 @@ export class DocumentService {
       filename: assetData.filename,
       s3Url: `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${assetData.s3Key}`,
       contentType: assetData.contentType,
-      sizeBytes: assetData.sizeBytes ? BigInt(assetData.sizeBytes) : null,
+      sizeBytes: assetData.sizeBytes ? assetData.sizeBytes.toString() : null,
       ownerDocument: { connect: { id: documentId } },
       uploadedBy: { connect: { id: userId } },
       department: user.departmentId ? { connect: { id: user.departmentId } } : undefined,
@@ -800,7 +826,7 @@ export class DocumentService {
       filename: assetData.filename,
       s3Url: `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${assetData.s3Key}`,
       contentType: assetData.contentType,
-      sizeBytes: assetData.sizeBytes ? BigInt(assetData.sizeBytes) : null,
+      sizeBytes: assetData.sizeBytes ? assetData.sizeBytes.toString() : null,
       isCover: assetData.isCover || false,
       ownerDocument: { connect: { id: documentId } },
       uploadedBy: { connect: { id: userId } },
@@ -837,11 +863,7 @@ export class DocumentService {
     const assets = await this.documentRepository.findAssetsByDocumentId(documentId);
     const coverAsset = assets.find(asset => asset.isCover === true);
 
-    if (!coverAsset) {
-      throw new NotFoundException('No cover image found for this document');
-    }
-
-    return coverAsset;
+    return coverAsset || null;
   }
 
   async updateDocumentCover(

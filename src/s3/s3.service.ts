@@ -1,6 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutBucketCorsCommand,
+  GetBucketCorsCommand
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 // import { v4 as uuidv4 } from 'uuid'; // Comment out static import
 
@@ -9,16 +16,17 @@ export class S3Service {
   private readonly logger = new Logger(S3Service.name);
   private readonly s3Client: S3Client;
   private readonly bucketName: string;
+  private readonly region: string;
 
   constructor(private readonly configService: ConfigService) {
     const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID');
     const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY');
-    const region = this.configService.get<string>('AWS_REGION', 'us-east-1');
+    this.region = this.configService.get<string>('AWS_REGION', 'us-east-1');
     if (!accessKeyId || !secretAccessKey) {
       throw new Error('AWS credentials are not set in environment variables');
     }
     this.s3Client = new S3Client({
-      region,
+      region: this.region,
       credentials: {
         accessKeyId,
         secretAccessKey,
@@ -47,7 +55,7 @@ export class S3Service {
     });
 
     const presignedUrl = await getSignedUrl(this.s3Client, command, { expiresIn: 3600 }); // 1 hour
-    const publicUrl = `https://${this.bucketName}.s3.amazonaws.com/${key}`;
+    const publicUrl = `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${key}`;
 
     this.logger.log(`Generated presigned URL for key: ${key}`);
 
@@ -128,6 +136,71 @@ export class S3Service {
       return signedUrl;
     } catch (error) {
       this.logger.error(`Failed to generate signed download URL for: ${key}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Setup CORS policy for S3 bucket to allow frontend uploads
+   */
+  async setupCorsPolicy(): Promise<void> {
+    try {
+      const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3030');
+      const backendUrl = this.configService.get<string>('APP_URL', 'http://localhost:3000');
+
+      const corsConfiguration = {
+        CORSRules: [
+          {
+            AllowedOrigins: [
+              frontendUrl.trim(),
+              backendUrl.trim(),
+              'http://localhost:3030',
+              'http://localhost:3000'
+            ],
+            AllowedMethods: ['GET', 'PUT', 'POST', 'DELETE', 'HEAD'],
+            AllowedHeaders: [
+              'Content-Type',
+              'Content-MD5',
+              'Content-Disposition',
+              'x-amz-checksum-crc32',
+              'x-amz-sdk-checksum-algorithm',
+              'Authorization',
+              'X-Amz-Date',
+              'X-Amz-Security-Token',
+              'x-amz-user-agent'
+            ],
+            ExposeHeaders: ['ETag'],
+            MaxAgeSeconds: 3000
+          }
+        ]
+      };
+
+      const command = new PutBucketCorsCommand({
+        Bucket: this.bucketName,
+        CORSConfiguration: corsConfiguration
+      });
+
+      await this.s3Client.send(command);
+      this.logger.log(`CORS policy updated for bucket: ${this.bucketName}`);
+    } catch (error) {
+      this.logger.error(`Failed to setup CORS policy for bucket: ${this.bucketName}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get current CORS policy
+   */
+  async getCorsPolicy(): Promise<any> {
+    try {
+      const command = new GetBucketCorsCommand({
+        Bucket: this.bucketName
+      });
+
+      const response = await this.s3Client.send(command);
+      return response.CORSRules;
+    } catch (error) {
+      this.logger.error(`Failed to get CORS policy for bucket: ${this.bucketName}`, error);
       throw error;
     }
   }

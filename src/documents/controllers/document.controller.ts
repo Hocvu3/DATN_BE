@@ -18,6 +18,7 @@ import {
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse } from '@nestjs/swagger';
+import { SecurityLevel } from '@prisma/client';
 import { DocumentService } from '../services/document.service';
 import { S3Service } from '../../s3/s3.service';
 import { CreateDocumentDto } from '../dto/create-document.dto';
@@ -109,6 +110,69 @@ export class DocumentController {
       return {
         message: 'Documents retrieved successfully',
         ...result,
+      };
+    } catch (error) {
+      const errorMessage =
+        typeof error === 'object' && error !== null && 'message' in error
+          ? (error as { message: string }).message
+          : 'An error occurred';
+      throw new BadRequestException(errorMessage);
+    }
+  }
+
+  @Get('public')
+  @Public()
+  @ApiOperation({ summary: 'Get public documents without authentication' })
+  @ApiOkResponse({ description: 'Public documents retrieved successfully' })
+  async getPublicDocuments(
+    @Query() query: GetDocumentsQueryDto,
+  ) {
+    try {
+      // Force securityLevel to PUBLIC for public endpoint
+      const publicQuery = {
+        ...query,
+        securityLevel: SecurityLevel.PUBLIC
+      };
+
+      // Use a system user ID for public access (you may want to create a dedicated public user)
+      // For now, we'll use a dummy user with ADMIN role to bypass permission checks
+      const result = await this.documentService.getDocuments('system', 'ADMIN', publicQuery);
+      return {
+        message: 'Public documents retrieved successfully',
+        ...result,
+      };
+    } catch (error) {
+      const errorMessage =
+        typeof error === 'object' && error !== null && 'message' in error
+          ? (error as { message: string }).message
+          : 'An error occurred';
+      throw new BadRequestException(errorMessage);
+    }
+  }
+
+  @Get('public/:id')
+  @Public()
+  @ApiOperation({ summary: 'Get public document by ID without authentication' })
+  @ApiOkResponse({ description: 'Public document retrieved successfully' })
+  async getPublicDocumentById(
+    @Param('id') id: string,
+  ) {
+    try {
+      // First check if document is public
+      const document = await this.documentService.getDocumentById(
+        id,
+        'system',
+        'ADMIN',
+      );
+
+      // Check if document is truly public
+      if (document.securityLevel !== SecurityLevel.PUBLIC) {
+        throw new UnauthorizedException('This document is not publicly accessible');
+      }
+
+      return {
+        message: 'Public document retrieved successfully',
+        document,
       };
     } catch (error) {
       const errorMessage =
@@ -862,14 +926,19 @@ export class DocumentController {
         throw new BadRequestException('Cover asset must be an image file');
       }
 
-      // Use the enhanced service method for cover images
-      const asset = await this.documentService.linkDocumentAssetWithCover(id, req.user.userId, {
-        s3Key: body.s3Key,
-        filename: body.filename,
-        contentType: body.contentType,
-        sizeBytes: body.sizeBytes,
-        isCover: true, // Always true for cover endpoint
-      });
+      // Use the enhanced service method for cover images with old cover cleanup
+      const asset = await this.documentService.updateDocumentCover(
+        id,
+        req.user.userId,
+        req.user.role,
+        {
+          s3Key: body.s3Key,
+          filename: body.filename,
+          contentType: body.contentType,
+          sizeBytes: body.sizeBytes,
+          isCover: true, // Always true for cover endpoint
+        }
+      );
 
       return {
         message: 'Cover image linked to document successfully',
@@ -1080,6 +1149,7 @@ export class DocumentController {
 
   // ===== FILE SERVING APIs =====
   @Get('files/view/:keyPath')
+  @Public()
   @ApiOperation({
     summary: 'View file from S3',
     description: 'Stream file content from S3 storage through backend to display in browser. Requires authentication.',
@@ -1131,6 +1201,7 @@ export class DocumentController {
   }
 
   @Get('files/download/:keyPath')
+  @Public()
   @ApiOperation({
     summary: 'Download file from S3',
     description: 'Download file from S3 storage through backend with proper headers. Requires authentication.',
@@ -1177,6 +1248,24 @@ export class DocumentController {
       this.logger.error(`Failed to download file: ${keyPath}`, error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       res.status(400).json({ error: `File not found: ${errorMessage}` });
+    }
+  }
+
+  @Post('setup-s3-cors')
+  @ApiOperation({
+    summary: 'Setup S3 CORS policy for frontend uploads',
+    description: 'Configure S3 bucket CORS to allow frontend direct uploads. Admin only.'
+  })
+  async setupS3Cors() {
+    try {
+      await this.s3Service.setupCorsPolicy();
+      return {
+        message: 'S3 CORS policy configured successfully',
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      throw new BadRequestException(`Failed to setup CORS: ${errorMessage}`);
     }
   }
 }

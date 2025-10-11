@@ -4,6 +4,7 @@ import {
   Get,
   Post,
   Req,
+  Res,
   UnauthorizedException,
   UseGuards,
   BadRequestException,
@@ -18,8 +19,7 @@ import { RegisterFromInvitationDto } from '../users/dto/register-from-invitation
 import { ResendInvitationDto } from '../users/dto/resend-invitation.dto';
 import { Public } from './decorators/public.decorator';
 
-// Keep DTOs if needed later; suppress unused warning for now
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// Keep DTOs if needed later
 class LoginDto {
   email!: string;
   password!: string;
@@ -43,7 +43,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly usersService: UsersService,
-  ) {}
+  ) { }
 
   @Public()
   @UseGuards(AuthGuard('local'))
@@ -63,11 +63,13 @@ export class AuthController {
   }
 
   // Google OAuth
+  @Public()
   @UseGuards(AuthGuard('google'))
   @Get('google')
   @ApiOperation({ summary: 'Initiate Google OAuth2 login' })
-  async googleAuth() {}
+  async googleAuth() { }
 
+  @Public()
   @UseGuards(AuthGuard('google'))
   @Get('google/callback')
   @ApiOperation({ summary: 'Google OAuth2 callback' })
@@ -76,19 +78,45 @@ export class AuthController {
     req: {
       user: { id: string; email: string; role?: { name?: string } | string | null };
     },
+    @Res() res: any,
   ) {
-    const dbUser = await this.usersService.findByEmail(req.user.email);
+    try {
+      const dbUser = await this.usersService.findByEmail(req.user.email);
 
-    if (!dbUser) {
-      throw new UnauthorizedException('User not found. Please contact administrator.');
+      if (!dbUser) {
+        // Redirect to frontend with error
+        const errorMsg = 'User not found. Please contact administrator.';
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+        return res.redirect(`${frontendUrl}/auth/google/callback?error=${encodeURIComponent(errorMsg)}`);
+      }
+
+      const authUser: AuthenticatedUser = {
+        id: dbUser.id,
+        email: dbUser.email,
+        role: typeof dbUser.role === 'string' ? dbUser.role : dbUser.role?.name || 'USER',
+      };
+
+      const tokens = await this.authService.login(authUser);
+
+      // Redirect to frontend callback with tokens and user data
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+      const callbackUrl = `${frontendUrl}/auth/google/callback` +
+        `?accessToken=${encodeURIComponent(tokens.accessToken)}` +
+        `&refreshToken=${encodeURIComponent(tokens.refreshToken)}` +
+        `&user=${encodeURIComponent(JSON.stringify({
+          id: authUser.id,
+          email: authUser.email,
+          name: authUser.email.split('@')[0],
+          role: authUser.role
+        }))}`;
+
+      return res.redirect(callbackUrl);
+    } catch (error: any) {
+      // Redirect to frontend with error
+      const errorMsg = error?.message || 'Google authentication failed';
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+      return res.redirect(`${frontendUrl}/auth/google/callback?error=${encodeURIComponent(errorMsg)}`);
     }
-
-    const authUser: AuthenticatedUser = {
-      id: dbUser.id,
-      email: dbUser.email,
-      role: typeof dbUser.role === 'string' ? dbUser.role : dbUser.role?.name || 'USER',
-    };
-    return this.authService.login(authUser);
   }
 
   @UseGuards(AuthGuard('jwt'))
@@ -213,13 +241,13 @@ export class AuthController {
         valid: result.valid,
         user: result.user
           ? {
-              email: result.user.email,
-              firstName: result.user.firstName,
-              lastName: result.user.lastName,
-              username: result.user.username,
-              role: result.user.role?.name,
-              department: result.user.department?.name,
-            }
+            email: result.user.email,
+            firstName: result.user.firstName,
+            lastName: result.user.lastName,
+            username: result.user.username,
+            role: result.user.role?.name,
+            department: result.user.department?.name,
+          }
           : null,
       };
     } catch (error) {
