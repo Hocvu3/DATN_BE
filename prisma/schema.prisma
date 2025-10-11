@@ -270,7 +270,7 @@ model Asset {
   filename          String
   s3Url             String    @map("s3_url")
   contentType       String?   @map("content_type")
-  sizeBytes         BigInt?   @map("size_bytes")
+  sizeBytes         String?   @map("size_bytes") // Changed from BigInt to String to avoid serialization issues
   isCover           Boolean   @default(false) @map("is_cover")
   createdAt         DateTime  @default(now()) @map("created_at")
 
@@ -284,11 +284,11 @@ model Asset {
   departmentId      String?   @map("department_id")
   department        Department? @relation(fields: [departmentId], references: [id])
   
-  // User avatar relation
-  userAvatarId      String?   @unique @map("user_avatar_id")
+    String?   @unique @map("user_avatar_id")
   userAvatar        User?     @relation("UserAvatar", fields: [userAvatarId], references: [id])
 
-  @@map("assets")
+  @@map("assets")  // User avatar relation
+  userAvatarId  
 }
 
 // ===== AUDIT SYSTEM =====

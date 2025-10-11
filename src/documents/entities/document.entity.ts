@@ -16,6 +16,7 @@ export interface DocumentEntity extends Document {
   department?: Department | null;
   versions: DocumentVersion[];
   assets: Asset[];
+  cover?: Asset | null;
   tags: Array<{
     id: string;
     tag: Tag;

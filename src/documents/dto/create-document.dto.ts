@@ -10,6 +10,7 @@ import {
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { DocumentStatus, SecurityLevel } from '@prisma/client';
+import { Type } from 'class-transformer';
 
 export class CreateDocumentDto {
   @ApiProperty({ example: 'Project Requirements Document', description: 'Document title' })
@@ -29,10 +30,11 @@ export class CreateDocumentDto {
   description?: string;
 
   @ApiProperty({ example: 'DOC-2024-001', description: 'Unique document number' })
+  @Type(() => String)
   @IsString()
-  @MinLength(1)
-  @MaxLength(50)
-  documentNumber?: string;
+  @MinLength(0)
+  @MaxLength(5000)
+  documentNumber?: string = `DOC-${Date.now()}`;
 
   @ApiProperty({
     example: 'DRAFT',
@@ -82,8 +84,8 @@ export class CreateDocumentDto {
   approverId?: string;
 
   @ApiProperty({
-    example: ['tag1', 'tag2'],
-    description: 'Document tags',
+    example: ['cmfpn65u70003vcqkodvmkj0y', 'cmfpn65tq0001vcqkb4qy7zu7'],
+    description: 'Document tag IDs',
     required: false,
   })
   @IsArray()

@@ -38,11 +38,11 @@ export class DocumentRepository {
     return this.prisma.document.findUnique({
       where: { id },
       include: {
-        creator: true,
+        creator: { include: { role: true, department: true , avatar: true } },
         approver: true,
         department: true,
         versions: true,
-        assets: true,
+        assets: { where: { isCover: false } },
         tags: { include: { tag: true } },
         comments: {
           include: {

@@ -6,11 +6,12 @@ import { UsersController } from './users.controller';
 import { AdminController } from './admin.controller';
 import { ManagerController } from './manager.controller';
 import { DepartmentController } from './department.controller';
+import { DepartmentsController } from './departments.controller';
 
 @Module({
   imports: [PrismaModule, S3Module],
-  controllers: [UsersController, AdminController, ManagerController, DepartmentController],
+  controllers: [UsersController, AdminController, ManagerController, DepartmentController, DepartmentsController],
   providers: [UsersService],
   exports: [UsersService],
 })
-export class UsersModule {}
+export class UsersModule { }

@@ -81,8 +81,8 @@ export class UpdateDocumentDto {
   approverId?: string;
 
   @ApiProperty({
-    example: ['tag1', 'tag2', 'tag3'],
-    description: 'Document tags',
+    example: ['cmfpn65u70003vcqkodvmkj0y', 'cmfpn65tq0001vcqkb4qy7zu7', 'cmfpn65ub0005vcqk804dcwpa'],
+    description: 'Document tag IDs',
     required: false,
   })
   @IsArray()

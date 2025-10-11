@@ -23,7 +23,7 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly s3Service: S3Service,
-  ) {}
+  ) { }
 
   async findByEmail(email: string): Promise<UserEntity | null> {
     return this.prisma.user.findUnique({
@@ -339,7 +339,7 @@ export class UsersService {
             filename: data.filename,
             s3Url: data.s3Url,
             contentType: data.contentType,
-            sizeBytes: data.sizeBytes ? BigInt(data.sizeBytes) : null,
+            sizeBytes: data.sizeBytes ? data.sizeBytes.toString() : null,
             uploadedBy: { connect: { id: data.uploadedById } },
             department: data.departmentId ? { connect: { id: data.departmentId } } : undefined,
           },

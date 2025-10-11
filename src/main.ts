@@ -5,6 +5,7 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { BigIntSerializerInterceptor } from './common/interceptors/bigint-serializer.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import helmet from 'helmet';
 
@@ -47,7 +48,10 @@ async function bootstrap() {
   app.useGlobalGuards(new JwtAuthGuard(new Reflector()));
 
   // Apply global interceptors and filters
-  app.useGlobalInterceptors(new TransformInterceptor());
+  app.useGlobalInterceptors(
+    new BigIntSerializerInterceptor(), // Run BigInt serializer first
+    new TransformInterceptor()
+  );
   app.useGlobalFilters(new HttpExceptionFilter());
 
   const logger = new Logger('Application');
