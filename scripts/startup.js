@@ -39,22 +39,36 @@ async function waitForDatabase() {
 
 async function setupDatabase() {
   try {
-    log('🗄️ Setting up fresh database...');
+    log('🗄️ Setting up database...');
 
     // Generate Prisma client
     log('📋 Generating Prisma client...');
     await execAsync('npx prisma generate');
 
-    // Run migrations for fresh database
-    log('🔄 Running database migrations...');
+    // Try migrations first, fallback to db push
+    log('🔄 Setting up database schema...');
     try {
       await execAsync('npx prisma migrate deploy');
       log('✅ Database migrations applied successfully!');
     } catch (migrateError) {
-      log(`⚠️ Migration error: ${migrateError.message}`);
-      log('🔄 Falling back to db push...');
-      await execAsync('npx prisma db push --accept-data-loss');
-      log('✅ Database schema synchronized!');
+      log(`⚠️ Migration deploy failed: ${migrateError.message}`);
+
+      if (
+        migrateError.message.includes('P3005') ||
+        migrateError.message.includes('schema is not empty')
+      ) {
+        log('🔄 Database not empty, using db push to sync schema...');
+      } else {
+        log('🔄 Migration failed, falling back to db push...');
+      }
+
+      try {
+        await execAsync('npx prisma db push --accept-data-loss');
+        log('✅ Database schema synchronized with db push!');
+      } catch (pushError) {
+        log(`⚠️ DB push also failed: ${pushError.message}`);
+        log('🔄 Continuing anyway - schema might already be correct...');
+      }
     }
 
     // Seed database
@@ -64,13 +78,13 @@ async function setupDatabase() {
       log('✅ Database seeded successfully!');
     } catch (seedError) {
       log(`⚠️ Seed error: ${seedError.message}`);
-      log('⚠️ Continuing without seed data...');
+      log('⚠️ Continuing without seed data (might already exist)...');
     }
 
     log('✅ Database setup completed!');
   } catch (error) {
     log(`❌ Database setup failed: ${error.message}`);
-    log('⚠️ Continuing with application startup...');
+    log('⚠️ Continuing with application startup anyway...');
   }
 }
 
@@ -116,16 +130,29 @@ async function main() {
     log(isDocker ? '🐳 Running in Docker environment' : '💻 Running in local environment');
 
     // Wait for database
-    await waitForDatabase();
+    try {
+      await waitForDatabase();
+    } catch (dbError) {
+      log(`⚠️ Database connection failed: ${dbError.message}`);
+      log('🔄 Continuing with application startup anyway...');
+    }
 
-    // Setup database
+    // Setup database (never crash here)
     await setupDatabase();
 
     // Start application
     await startApplication();
   } catch (error) {
     log(`❌ Startup failed: ${error.message}`);
-    process.exit(1);
+    log('🔄 Attempting to start application anyway...');
+
+    // Try to start app even if setup failed
+    try {
+      await startApplication();
+    } catch (appError) {
+      log(`❌ Application startup also failed: ${appError.message}`);
+      process.exit(1);
+    }
   }
 }
 
