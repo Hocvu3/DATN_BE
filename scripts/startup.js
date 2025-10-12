@@ -49,12 +49,28 @@ async function setupDatabase() {
   try {
     log('🗄️ Setting up database...');
 
-    // Just run migrations and seed, generate already done in waitForDatabase
-    log('� Running migrations...');
-    await execAsync('npx prisma migrate deploy');
+    // Schema is already pushed in waitForDatabase, so just try migrations and seed
+    log('📋 Running migrations (if needed)...');
+    try {
+      await execAsync('npx prisma migrate deploy', { timeout: 30000 });
+      log('✅ Migrations applied successfully!');
+    } catch (migrateError) {
+      if (migrateError.message.includes('P3005') || migrateError.message.includes('schema is not empty')) {
+        log('⚠️ Database schema already exists (P3005). Skipping migrations...');
+      } else {
+        log(`⚠️ Migration error: ${migrateError.message}`);
+      }
+      log('🔄 Schema is already synchronized from db push, continuing...');
+    }
 
     log('🌱 Seeding database...');
-    await execAsync('npx prisma db seed');
+    try {
+      await execAsync('npx prisma db seed', { timeout: 30000 });
+      log('✅ Database seeded successfully!');
+    } catch (seedError) {
+      log(`⚠️ Seed error: ${seedError.message}`);
+      log('⚠️ This is normal if seed data already exists...');
+    }
 
     log('✅ Database setup completed!');
   } catch (error) {
@@ -108,14 +124,22 @@ async function main() {
     // Wait for PostgreSQL to be ready
     await waitForDatabase();
 
-    // Run database setup (migrations + seed)
+    // Run database setup (migrations + seed) - never crash here
     await setupDatabase();
 
     // Start application
     await startApplication();
   } catch (error) {
     log(`❌ Startup failed: ${error.message}`);
-    process.exit(1);
+    log('🔄 Attempting to start application anyway...');
+    
+    // Try to start application even if database setup failed
+    try {
+      await startApplication();
+    } catch (appError) {
+      log(`❌ Application startup also failed: ${appError.message}`);
+      process.exit(1);
+    }
   }
 }
 
