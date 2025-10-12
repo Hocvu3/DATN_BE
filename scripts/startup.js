@@ -5,7 +5,7 @@ const { promisify } = require('util');
 
 const execAsync = promisify(exec);
 
-async function log(message) {
+function log(message) {
   console.log(`[${new Date().toISOString()}] ${message}`);
 }
 
@@ -21,7 +21,6 @@ async function waitForDatabase() {
 
   while (attempts < maxAttempts) {
     try {
-      // Use Prisma to check database connection
       await execAsync('npx prisma db push --accept-data-loss', {
         env: { ...process.env },
         timeout: 10000,
@@ -40,38 +39,22 @@ async function waitForDatabase() {
 
 async function setupDatabase() {
   try {
-    log('🗄️ Setting up database...');
+    log('🗄️ Setting up fresh database...');
 
     // Generate Prisma client
     log('📋 Generating Prisma client...');
     await execAsync('npx prisma generate');
 
-    // Check if database needs migration or is already set up
-async function setupDatabase() {
-  try {
-    log('🗄️ Setting up database...');
-
-    // Generate Prisma client
-    log('📋 Generating Prisma client...');
-    await execAsync('npx prisma generate');
-
-    // Check if database needs migration or is already set up
-    log('🔍 Checking database state...');
+    // Run migrations for fresh database
+    log('🔄 Running database migrations...');
     try {
-      // Try to run migrations
       await execAsync('npx prisma migrate deploy');
       log('✅ Database migrations applied successfully!');
     } catch (migrateError) {
-      if (
-        migrateError.message.includes('P3005') ||
-        migrateError.message.includes('schema is not empty')
-      ) {
-        log('⚠️ Database already has schema. Skipping migrations...');
-        log('✅ Database appears to be already set up!');
-      } else {
-        log(`⚠️ Migration error: ${migrateError.message}`);
-        log('🔄 Trying to continue anyway...');
-      }
+      log(`⚠️ Migration error: ${migrateError.message}`);
+      log('🔄 Falling back to db push...');
+      await execAsync('npx prisma db push --accept-data-loss');
+      log('✅ Database schema synchronized!');
     }
 
     // Seed database
@@ -80,61 +63,22 @@ async function setupDatabase() {
       await execAsync('npx prisma db seed');
       log('✅ Database seeded successfully!');
     } catch (seedError) {
-      log('⚠️ Seed might have already run or failed, continuing...');
-    }
-
-    log('✅ Database setup completed!');
-    return true; // Always return success
-  } catch (error) {
-    log(`❌ Database setup error: ${error.message}`);
-    log('⚠️ Continuing with application startup anyway...');
-    return false; // Don't crash, just warn
-  }
-}
-    try {
-      // Try to run migrations
-      await execAsync('npx prisma migrate deploy');
-      log('✅ Database migrations applied successfully!');
-    } catch (migrateError) {
-      if (
-        migrateError.message.includes('P3005') ||
-        migrateError.message.includes('schema is not empty')
-      ) {
-        log('⚠️ Database already has schema. Attempting to resolve...');
-        try {
-          // Try to introspect and push schema
-          await execAsync('npx prisma db push --accept-data-loss');
-          log('✅ Database schema synchronized!');
-        } catch (pushError) {
-          log('⚠️ Schema push failed, trying to continue without migrations...');
-          // Continue anyway - database might be already set up
-        }
-      } else {
-        throw migrateError;
-      }
-    }
-
-    // Seed database
-    log('🌱 Seeding database...');
-    try {
-      await execAsync('npx prisma db seed');
-      log('✅ Database seeded successfully!');
-    } catch (seedError) {
-      log('⚠️ Seed might have already run or failed, continuing...');
+      log(`⚠️ Seed error: ${seedError.message}`);
+      log('⚠️ Continuing without seed data...');
     }
 
     log('✅ Database setup completed!');
   } catch (error) {
     log(`❌ Database setup failed: ${error.message}`);
-    // Don't throw error - try to continue
     log('⚠️ Continuing with application startup...');
   }
 }
+
 async function startApplication() {
   log('🚀 Starting application...');
 
   const isProduction = process.env.NODE_ENV === 'production';
-  const command = isProduction ? 'npm' : 'npm';
+  const command = 'npm';
   const args = isProduction ? ['run', 'start:prod'] : ['run', 'start:dev'];
 
   const app = spawn(command, args, {
@@ -152,7 +96,7 @@ async function startApplication() {
     process.exit(code);
   });
 
-  // Handle graceful shutdown
+  // Graceful shutdown
   process.on('SIGTERM', () => {
     log('🛑 Received SIGTERM, shutting down gracefully...');
     app.kill('SIGTERM');
@@ -168,7 +112,6 @@ async function main() {
   try {
     log('🚀 Starting Secure Document Management System...');
 
-    // Check environment
     const isDocker = process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgres:');
     log(isDocker ? '🐳 Running in Docker environment' : '💻 Running in local environment');
 
@@ -186,7 +129,7 @@ async function main() {
   }
 }
 
-// Handle uncaught exceptions
+// Error handlers
 process.on('uncaughtException', error => {
   log(`❌ Uncaught Exception: ${error.message}`);
   process.exit(1);
