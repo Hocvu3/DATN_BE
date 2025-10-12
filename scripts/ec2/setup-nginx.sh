@@ -19,7 +19,7 @@ sudo cp /etc/nginx/sites-available/default /etc/nginx/sites-available/default.ba
 
 # Copy our config
 echo "📋 Copying nginx configuration..."
-sudo cp /home/ubuntu/secure-document-management/nginx/system-nginx.conf /etc/nginx/sites-available/secure-doc
+sudo cp /home/ubuntu/secure-document-management/nginx/simple-nginx.conf /etc/nginx/sites-available/secure-doc
 
 # Enable our site
 sudo ln -sf /etc/nginx/sites-available/secure-doc /etc/nginx/sites-enabled/

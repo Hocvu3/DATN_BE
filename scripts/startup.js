@@ -41,11 +41,11 @@ async function waitForDatabase() {
 async function setupDatabase() {
   try {
     log('🗄️ Setting up database...');
-    
+
     // Generate Prisma client
     log('📋 Generating Prisma client...');
     await execAsync('npx prisma generate');
-    
+
     // Check if database needs migration or is already set up
     log('� Checking database state...');
     try {
@@ -53,7 +53,10 @@ async function setupDatabase() {
       await execAsync('npx prisma migrate deploy');
       log('✅ Database migrations applied successfully!');
     } catch (migrateError) {
-      if (migrateError.message.includes('P3005') || migrateError.message.includes('schema is not empty')) {
+      if (
+        migrateError.message.includes('P3005') ||
+        migrateError.message.includes('schema is not empty')
+      ) {
         log('⚠️ Database already has schema. Attempting to resolve...');
         try {
           // Try to introspect and push schema
@@ -67,7 +70,7 @@ async function setupDatabase() {
         throw migrateError;
       }
     }
-    
+
     // Seed database
     log('🌱 Seeding database...');
     try {
@@ -76,14 +79,15 @@ async function setupDatabase() {
     } catch (seedError) {
       log('⚠️ Seed might have already run or failed, continuing...');
     }
-    
+
     log('✅ Database setup completed!');
   } catch (error) {
     log(`❌ Database setup failed: ${error.message}`);
     // Don't throw error - try to continue
     log('⚠️ Continuing with application startup...');
   }
-}async function startApplication() {
+}
+async function startApplication() {
   log('🚀 Starting application...');
 
   const isProduction = process.env.NODE_ENV === 'production';
