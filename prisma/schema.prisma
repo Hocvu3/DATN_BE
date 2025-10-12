@@ -284,11 +284,10 @@ model Asset {
   departmentId      String?   @map("department_id")
   department        Department? @relation(fields: [departmentId], references: [id])
   
-    String?   @unique @map("user_avatar_id")
+  userAvatarId      String?   @unique @map("user_avatar_id")
   userAvatar        User?     @relation("UserAvatar", fields: [userAvatarId], references: [id])
 
-  @@map("assets")  // User avatar relation
-  userAvatarId  
+  @@map("assets")
 }
 
 // ===== AUDIT SYSTEM =====
