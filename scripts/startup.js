@@ -6,7 +6,7 @@ const { promisify } = require('util');
 const execAsync = promisify(exec);
 
 function log(message) {
-  console.log(`[${new Date().toISOString()}] ${message}`);
+  console.log(`${message}`);
 }
 
 async function sleep(ms) {
@@ -14,77 +14,49 @@ async function sleep(ms) {
 }
 
 async function waitForDatabase() {
-  const maxAttempts = 30;
-  let attempts = 0;
+  log('⏳ Waiting for PostgreSQL...');
 
-  log('⏳ Waiting for PostgreSQL to be ready...');
+  const isDocker = process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgres:');
+  const dbHost = isDocker ? 'postgres' : 'localhost';
+  const waitCmd = `pg_isready -h ${dbHost} -U postgres`;
 
-  while (attempts < maxAttempts) {
+  while (true) {
     try {
-      await execAsync('npx prisma db push --accept-data-loss', {
-        env: { ...process.env },
-        timeout: 10000,
-      });
+      await execAsync(waitCmd, { timeout: 5000 });
       log('✅ PostgreSQL is ready!');
-      return true;
+      break;
     } catch (error) {
-      attempts++;
-      log(`PostgreSQL not ready yet (attempt ${attempts}/${maxAttempts}). Waiting...`);
+      log('PostgreSQL is unavailable - sleeping');
       await sleep(2000);
     }
   }
-
-  throw new Error('❌ PostgreSQL connection timeout');
 }
 
 async function setupDatabase() {
   try {
     log('🗄️ Setting up database...');
-
-    // Generate Prisma client
-    log('📋 Generating Prisma client...');
-    await execAsync('npx prisma generate');
-
-    // Try migrations first, fallback to db push
-    log('🔄 Setting up database schema...');
-    try {
-      await execAsync('npx prisma migrate deploy');
-      log('✅ Database migrations applied successfully!');
-    } catch (migrateError) {
-      log(`⚠️ Migration deploy failed: ${migrateError.message}`);
-
-      if (
-        migrateError.message.includes('P3005') ||
-        migrateError.message.includes('schema is not empty')
-      ) {
-        log('🔄 Database not empty, using db push to sync schema...');
-      } else {
-        log('🔄 Migration failed, falling back to db push...');
-      }
-
-      try {
-        await execAsync('npx prisma db push --accept-data-loss');
-        log('✅ Database schema synchronized with db push!');
-      } catch (pushError) {
-        log(`⚠️ DB push also failed: ${pushError.message}`);
-        log('🔄 Continuing anyway - schema might already be correct...');
-      }
-    }
-
-    // Seed database
-    log('🌱 Seeding database...');
-    try {
-      await execAsync('npx prisma db seed');
-      log('✅ Database seeded successfully!');
-    } catch (seedError) {
-      log(`⚠️ Seed error: ${seedError.message}`);
-      log('⚠️ Continuing without seed data (might already exist)...');
-    }
-
+    await execAsync('npm run db:setup');
     log('✅ Database setup completed!');
   } catch (error) {
-    log(`❌ Database setup failed: ${error.message}`);
-    log('⚠️ Continuing with application startup anyway...');
+    log(`⚠️ Database setup failed: ${error.message}`);
+    log('🔄 Continuing with application startup anyway...');
+  }
+}
+
+async function applySecurityPolicies() {
+  try {
+    log('� Applying security policies...');
+    
+    const isDocker = process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgres:');
+    const psqlCmd = isDocker 
+      ? 'psql -U postgres -h postgres -d secure_document_management -f database/init.sql'
+      : 'psql -U postgres -d secure_document_management -f database/init.sql';
+    
+    await execAsync(psqlCmd);
+    log('✅ Security policies applied!');
+  } catch (error) {
+    log(`⚠️ Security policies failed: ${error.message}`);
+    log('🔄 Continuing anyway...');
   }
 }
 
@@ -126,33 +98,24 @@ async function main() {
   try {
     log('🚀 Starting Secure Document Management System...');
 
+    // Check environment
     const isDocker = process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgres:');
     log(isDocker ? '🐳 Running in Docker environment' : '💻 Running in local environment');
 
-    // Wait for database
-    try {
-      await waitForDatabase();
-    } catch (dbError) {
-      log(`⚠️ Database connection failed: ${dbError.message}`);
-      log('🔄 Continuing with application startup anyway...');
-    }
+    // Wait for PostgreSQL to be ready
+    await waitForDatabase();
 
-    // Setup database (never crash here)
+    // Run database setup (migrations + seed)
     await setupDatabase();
+
+    // Apply security policies
+    await applySecurityPolicies();
 
     // Start application
     await startApplication();
   } catch (error) {
     log(`❌ Startup failed: ${error.message}`);
-    log('🔄 Attempting to start application anyway...');
-
-    // Try to start app even if setup failed
-    try {
-      await startApplication();
-    } catch (appError) {
-      log(`❌ Application startup also failed: ${appError.message}`);
-      process.exit(1);
-    }
+    process.exit(1);
   }
 }
 
