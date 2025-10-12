@@ -2,6 +2,7 @@
 
 # ===== EC2 INITIAL SETUP SCRIPT =====
 # Run this script on your EC2 instance to set up the environment
+export DEBIAN_FRONTEND=noninteractive
 
 set -e
 
