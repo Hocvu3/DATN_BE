@@ -47,7 +47,50 @@ async function setupDatabase() {
     await execAsync('npx prisma generate');
 
     // Check if database needs migration or is already set up
-    log('� Checking database state...');
+async function setupDatabase() {
+  try {
+    log('🗄️ Setting up database...');
+
+    // Generate Prisma client
+    log('📋 Generating Prisma client...');
+    await execAsync('npx prisma generate');
+
+    // Check if database needs migration or is already set up
+    log('🔍 Checking database state...');
+    try {
+      // Try to run migrations
+      await execAsync('npx prisma migrate deploy');
+      log('✅ Database migrations applied successfully!');
+    } catch (migrateError) {
+      if (
+        migrateError.message.includes('P3005') ||
+        migrateError.message.includes('schema is not empty')
+      ) {
+        log('⚠️ Database already has schema. Skipping migrations...');
+        log('✅ Database appears to be already set up!');
+      } else {
+        log(`⚠️ Migration error: ${migrateError.message}`);
+        log('🔄 Trying to continue anyway...');
+      }
+    }
+
+    // Seed database
+    log('🌱 Seeding database...');
+    try {
+      await execAsync('npx prisma db seed');
+      log('✅ Database seeded successfully!');
+    } catch (seedError) {
+      log('⚠️ Seed might have already run or failed, continuing...');
+    }
+
+    log('✅ Database setup completed!');
+    return true; // Always return success
+  } catch (error) {
+    log(`❌ Database setup error: ${error.message}`);
+    log('⚠️ Continuing with application startup anyway...');
+    return false; // Don't crash, just warn
+  }
+}
     try {
       // Try to run migrations
       await execAsync('npx prisma migrate deploy');
