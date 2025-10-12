@@ -1,0 +1,277 @@
+name: 🚀 Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '18'
+  APP_NAME: secure-document-management
+  DEPLOY_PATH: /home/ubuntu/secure-document-management
+
+jobs:
+  # =================== SECURITY & QUALITY CHECKS ===================
+  security-scan:
+    name: 🔍 Security & Quality Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run Prettier check
+        run: npx prettier --check "src/**/*.ts"
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Build application
+        run: npm run build
+
+      - name: Run dependency audit
+        run: npm audit --audit-level moderate
+
+      - name: Scan for secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+
+  # =================== BUILD & TEST ===================
+  build-and-test:
+    name: 🏗️ Build & Test
+    runs-on: ubuntu-latest
+    needs: security-scan
+
+    services:
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Run database migrations
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://postgres:test_password@localhost:5432/test_db
+
+      - name: Build application
+        run: npm run build
+
+      - name: Run tests (if any)
+        run: |
+          if [ -f "package.json" ] && grep -q '"test"' package.json; then
+            npm test
+          else
+            echo "No tests found, skipping..."
+          fi
+
+  # =================== DOCKER BUILD ===================
+  docker-build:
+    name: 🐳 Docker Build
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: ${{ env.APP_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Test Docker image
+        run: |
+          docker run --rm ${{ env.APP_NAME }}:latest node --version
+
+  # =================== DEPLOY TO EC2 ===================
+  deploy:
+    name: 🚀 Deploy to EC2
+    runs-on: ubuntu-latest
+    needs: [security-scan, build-and-test, docker-build]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+
+      - name: Add EC2 to known hosts
+        run: |
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
+            set -e
+            
+            echo "🚀 Starting deployment..."
+            
+            # Navigate to project directory
+            cd ${{ env.DEPLOY_PATH }}
+            
+            # Backup current deployment
+            if [ -d "backup" ]; then
+              rm -rf backup.old
+              mv backup backup.old
+            fi
+            
+            # Create backup of current state
+            mkdir -p backup
+            if [ -f "docker-compose.prod.yml" ]; then
+              cp docker-compose.prod.yml backup/
+            fi
+            if [ -f ".env.prod" ]; then
+              cp .env.prod backup/
+            fi
+            
+            # Pull latest code
+            echo "📥 Pulling latest code..."
+            git fetch origin
+            git reset --hard origin/main
+            
+            # Copy environment file back
+            if [ -f "backup/.env.prod" ]; then
+              cp backup/.env.prod .env.prod
+            fi
+            
+            # Stop current services
+            echo "🛑 Stopping current services..."
+            docker-compose -f docker-compose.prod.yml --env-file .env.prod down || true
+            
+            # Remove old images
+            echo "🧹 Cleaning up old images..."
+            docker image prune -f
+            
+            # Build and start new services
+            echo "🏗️ Building and starting services..."
+            docker-compose -f docker-compose.prod.yml --env-file .env.prod build --no-cache
+            docker-compose -f docker-compose.prod.yml --env-file .env.prod up -d
+            
+            # Wait for services to be healthy
+            echo "⏳ Waiting for services to be healthy..."
+            sleep 30
+            
+            # Check if services are running
+            echo "🔍 Checking service health..."
+            docker-compose -f docker-compose.prod.yml --env-file .env.prod ps
+            
+            # Test application health
+            echo "🏥 Testing application health..."
+            max_attempts=30
+            attempt=1
+            while [ $attempt -le $max_attempts ]; do
+              if curl -f http://localhost/api/health > /dev/null 2>&1; then
+                echo "✅ Application is healthy!"
+                break
+              fi
+              echo "Attempt $attempt/$max_attempts: Application not ready yet..."
+              sleep 10
+              attempt=$((attempt + 1))
+            done
+            
+            if [ $attempt -gt $max_attempts ]; then
+              echo "❌ Application health check failed!"
+              exit 1
+            fi
+            
+            echo "🎉 Deployment completed successfully!"
+          EOF
+
+      - name: Verify deployment
+        run: |
+          echo "🔍 Verifying deployment..."
+
+          # Wait a bit for services to fully start
+          sleep 10
+
+          # Check if the application is responding
+          max_attempts=10
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            if curl -f http://${{ secrets.EC2_HOST }}/api/health > /dev/null 2>&1; then
+              echo "✅ Application is accessible and healthy!"
+              break
+            fi
+            echo "Attempt $attempt/$max_attempts: Checking application health..."
+            sleep 5
+            attempt=$((attempt + 1))
+          done
+
+          if [ $attempt -gt $max_attempts ]; then
+            echo "❌ Application verification failed!"
+            exit 1
+          fi
+
+  # =================== NOTIFY ===================
+  notify:
+    name: 📢 Notify
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: always()
+
+    steps:
+      - name: Notify success
+        if: needs.deploy.result == 'success'
+        run: |
+          echo "✅ Deployment successful!"
+          echo "🚀 Application URL: https://${{ secrets.EC2_HOST }}"
+
+      - name: Notify failure
+        if: needs.deploy.result == 'failure'
+        run: |
+          echo "❌ Deployment failed!"
+          echo "Please check the logs and try again."

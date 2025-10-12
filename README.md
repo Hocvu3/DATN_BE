@@ -28,6 +28,7 @@ Hệ thống quản lý văn bản an toàn cho doanh nghiệp với tích hợp
 ## 🚀 Tính năng chính
 
 ### 🔐 Bảo mật
+
 - **Row Level Security (RLS)** trong PostgreSQL
 - **Encryption** cho dữ liệu nhạy cảm
 - **Audit logging** toàn diện
@@ -35,6 +36,7 @@ Hệ thống quản lý văn bản an toàn cho doanh nghiệp với tích hợp
 - **Digital Signature** hỗ trợ
 
 ### 📄 Quản lý văn bản
+
 - Upload và version control
 - Approval workflow
 - Full-text search với PostgreSQL
@@ -43,12 +45,14 @@ Hệ thống quản lý văn bản an toàn cho doanh nghiệp với tích hợp
 - Tagging system
 
 ### 👥 Quản lý người dùng
+
 - Role-based access control
 - Department management
 - User activity tracking
 - Real-time notifications
 
 ### 🔍 Tìm kiếm và phân tích
+
 - Full-text search với PostgreSQL
 - Advanced filtering
 - Audit trail
@@ -72,28 +76,34 @@ Hệ thống quản lý văn bản an toàn cho doanh nghiệp với tích hợp
 ## 🚀 Cài đặt và chạy
 
 ### 1. Clone repository
+
 ```bash
 git clone <repository-url>
 cd datn_be
 ```
 
 ### 2. Cài đặt dependencies
+
 ```bash
 npm install
 ```
 
 ### 3. Cấu hình database
+
 Tạo file `.env`:
+
 ```bash
 cp .env.example .env
 ```
 
 Cập nhật thông tin kết nối PostgreSQL trong file `.env`:
+
 ```env
 DATABASE_URL="postgresql://username:password@localhost:5432/secure_document_management?schema=public"
 ```
 
 ### 4. Thiết lập database
+
 ```bash
 # Xóa database nếu đã tồn tại
 dropdb secure_document_management
@@ -111,6 +121,7 @@ npm run db:seed        # Seed sample data
 ```
 
 ### 5. Chạy ứng dụng
+
 ```bash
 # Development
 npm run start:dev
@@ -123,6 +134,7 @@ npm run start:prod
 ## 🗄️ Cấu trúc Database
 
 ### Core Tables
+
 - `users` - Quản lý người dùng
 - `roles` - Phân quyền
 - `departments` - Phòng ban
@@ -131,11 +143,13 @@ npm run start:prod
 - `attachments` - File đính kèm
 
 ### Security Tables
+
 - `audit_logs` - Nhật ký audit
 - `digital_signatures` - Chữ ký số
 - `signature_requests` - Yêu cầu ký
 
 ### Support Tables
+
 - `tags` - Thẻ phân loại
 - `comments` - Bình luận
 - `notifications` - Thông báo
@@ -143,16 +157,19 @@ npm run start:prod
 ## 🔐 Bảo mật PostgreSQL
 
 ### Row Level Security (RLS)
+
 - Mỗi bảng đều có RLS policies
 - Access control dựa trên role và department
 - Security level filtering
 
 ### Encryption
+
 - PGP encryption cho dữ liệu nhạy cảm
 - Encrypted file storage
 - Secure key management
 
 ### Audit Logging
+
 - Tự động log mọi thay đổi
 - IP address và user agent tracking
 - Immutable audit trail
@@ -160,11 +177,13 @@ npm run start:prod
 ## 📊 API Endpoints
 
 ### Authentication
+
 - `POST /auth/login` - Đăng nhập
 - `POST /auth/logout` - Đăng xuất
 - `POST /auth/refresh` - Refresh token
 
 ### Documents
+
 - `GET /documents` - Danh sách văn bản
 - `POST /documents` - Tạo văn bản mới
 - `GET /documents/:id` - Chi tiết văn bản
@@ -172,12 +191,14 @@ npm run start:prod
 - `DELETE /documents/:id` - Xóa văn bản
 
 ### Users & Roles
+
 - `GET /users` - Danh sách người dùng
 - `POST /users` - Tạo người dùng mới
 - `GET /roles` - Danh sách vai trò
 - `GET /departments` - Danh sách phòng ban
 
 ### Audit & Security
+
 - `GET /audit-logs` - Nhật ký audit
 - `GET /security/analytics` - Phân tích bảo mật
 
@@ -185,14 +206,15 @@ npm run start:prod
 
 ```sql
 -- Tìm kiếm văn bản với PostgreSQL FTS
-SELECT * FROM documents 
-WHERE to_tsvector('simple', title || ' ' || description || ' ' || document_number) 
+SELECT * FROM documents
+WHERE to_tsvector('simple', title || ' ' || description || ' ' || document_number)
 @@ plainto_tsquery('simple', 'search term');
 ```
 
 ## 🚀 DevSecOps Pipeline
 
 ### GitLab CI/CD
+
 ```yaml
 stages:
   - install
@@ -204,6 +226,7 @@ stages:
 ```
 
 ### Security Scanning
+
 - **SAST**: SonarQube analysis
 - **DAST**: OWASP ZAP testing
 - **Secret scanning**: GitGuardian
@@ -252,11 +275,212 @@ Sau khi chạy seed, sử dụng các tài khoản mặc định:
 
 MIT License - xem file [LICENSE](LICENSE) để biết thêm chi tiết.
 
+## 🚀 Production Deployment (EC2)
+
+### 1. Chuẩn bị EC2 Instance
+
+```bash
+# SSH vào EC2 instance
+ssh ubuntu@your-ec2-ip
+
+# Download và chạy setup script
+curl -sSL https://raw.githubusercontent.com/Hocvu3/DATN_BE/main/scripts/ec2/setup.sh | bash
+
+# Hoặc clone repo và chạy script
+git clone https://github.com/Hocvu3/DATN_BE.git secure-document-management
+cd secure-document-management
+chmod +x scripts/ec2/setup.sh
+./scripts/ec2/setup.sh
+```
+
+### 2. Cấu hình Environment Variables
+
+```bash
+# Edit production environment file
+cd /home/ubuntu/secure-document-management
+nano .env.prod
+
+# Cập nhật các giá trị sau:
+POSTGRES_PASSWORD=your_strong_password
+APP_URL=https://yourdomain.com
+FRONTEND_URL=https://yourfrontend.com
+JWT_SECRET=your-super-secure-jwt-secret-here
+AWS_ACCESS_KEY_ID=your_aws_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret
+# ... các biến khác
+```
+
+### 3. Setup SSL Certificate (Optional - Let's Encrypt)
+
+```bash
+# Cài đặt SSL certificate thật với Let's Encrypt
+./scripts/ec2/setup-ssl.sh yourdomain.com admin@yourdomain.com
+```
+
+### 4. Deploy Application
+
+```bash
+# Deploy manually
+./scripts/ec2/deploy.sh
+
+# Hoặc start service
+sudo systemctl start secure-document-management
+sudo systemctl status secure-document-management
+```
+
+### 5. Setup GitHub Actions Secrets
+
+Trong GitHub repository, vào **Settings > Secrets and variables > Actions** và thêm:
+
+```
+EC2_HOST=your-ec2-public-ip
+EC2_SSH_PRIVATE_KEY=your-ec2-private-key-content
+```
+
+### 6. Automatic Deployment
+
+Sau khi setup xong, mọi push vào branch `main` sẽ tự động trigger GitHub Actions để:
+
+1. **Security & Quality Checks**: ESLint, Secret scanning, Dependency audit
+2. **Build & Test**: Build application và run tests
+3. **Docker Build**: Build Docker images
+4. **Deploy to EC2**: Tự động deploy lên EC2
+5. **Health Check**: Verify deployment success
+
+### 7. Monitoring & Maintenance
+
+```bash
+# Check application status
+/home/ubuntu/monitor.sh
+
+# View logs
+docker logs secure_doc_app -f
+
+# Manual backup
+/home/ubuntu/backup.sh
+
+# Update application manually
+cd /home/ubuntu/secure-document-management
+git pull origin main
+docker-compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+```
+
+### 8. Architecture
+
+```
+[Internet]
+    ↓
+[AWS ALB/CloudFlare] (Optional)
+    ↓
+[EC2 Instance - Nginx Reverse Proxy]
+    ↓
+[Docker Containers]
+├── App (NestJS Backend)
+├── PostgreSQL Database
+└── Nginx (SSL Termination)
+```
+
+### 9. Security Features
+
+- **SSL/TLS encryption** với Let's Encrypt
+- **Firewall** với UFail2ban protection
+- **Docker security** với non-root users
+- **Automated backups** daily at 2 AM
+- **Log rotation** và monitoring
+- **Health checks** và auto-restart
+
+### 10. CI/CD Pipeline
+
+```mermaid
+graph LR
+    A[Git Push] --> B[GitHub Actions]
+    B --> C[Security Scan]
+    B --> D[Build & Test]
+    B --> E[Docker Build]
+    C --> F[Deploy to EC2]
+    D --> F
+    E --> F
+    F --> G[Health Check]
+    G --> H[Notify Success/Failure]
+```
+
+### 11. Useful Commands
+
+```bash
+# Application management
+sudo systemctl start secure-document-management
+sudo systemctl stop secure-document-management
+sudo systemctl restart secure-document-management
+sudo systemctl status secure-document-management
+
+# Docker management
+docker-compose -f docker-compose.prod.yml --env-file .env.prod ps
+docker-compose -f docker-compose.prod.yml --env-file .env.prod logs app
+docker-compose -f docker-compose.prod.yml --env-file .env.prod restart
+
+# System monitoring
+htop                    # System resources
+docker stats           # Container resources
+df -h                  # Disk usage
+free -m                # Memory usage
+
+# Backup and restore
+/home/ubuntu/backup.sh                        # Manual backup
+ls /home/ubuntu/backups/                      # List backups
+docker exec -i secure_doc_postgres psql -U postgres -d secure_document_management < backup.sql  # Restore
+```
+
+### 12. Troubleshooting
+
+**Application not starting:**
+
+```bash
+# Check logs
+docker logs secure_doc_app
+docker logs secure_doc_postgres
+docker logs secure_doc_nginx
+
+# Check environment
+cat .env.prod
+
+# Restart services
+docker-compose -f docker-compose.prod.yml --env-file .env.prod restart
+```
+
+**SSL issues:**
+
+```bash
+# Check certificates
+ls -la nginx/ssl/
+
+# Renew Let's Encrypt
+sudo certbot renew --dry-run
+
+# Check nginx config
+docker exec secure_doc_nginx nginx -t
+```
+
+**Database issues:**
+
+```bash
+# Check database connection
+docker exec secure_doc_postgres pg_isready -U postgres
+
+# Access database
+docker exec -it secure_doc_postgres psql -U postgres -d secure_document_management
+
+# Check database logs
+docker logs secure_doc_postgres
+```
+
 ---
 
-**Lưu ý**: Đây là hệ thống demo cho mục đích học tập. Trong môi trường production, hãy đảm bảo:
+**⚠️ Lưu ý Bảo mật Production**:
+
 - Thay đổi tất cả mật khẩu mặc định
-- Cấu hình SSL/TLS
-- Thiết lập backup strategy
-- Monitoring và alerting
-- Security hardening
+- Cấu hình SSL/TLS certificates
+- Thiết lập backup strategy và disaster recovery
+- Monitoring và alerting với CloudWatch/Grafana
+- Regular security updates và patching
+- Network security với VPC và Security Groups
+- Database encryption at rest và in transit

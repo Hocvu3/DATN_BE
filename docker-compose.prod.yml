@@ -1,0 +1,131 @@
+# ===== PRODUCTION DOCKER COMPOSE FOR EC2 =====
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:14-alpine
+    container_name: secure_doc_postgres
+    environment:
+      POSTGRES_DB: secure_document_management
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: '--encoding=UTF-8 --lc-collate=C --lc-ctype=C'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - secure_doc_network
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: secure_doc_app
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/secure_document_management?schema=public
+      PORT: 3000
+      APP_URL: ${APP_URL}
+      FRONTEND_URL: ${FRONTEND_URL}
+
+      # Gmail configuration
+      GMAIL_USER: ${GMAIL_USER}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI}
+
+      # Security Configuration
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_EXPIRES: ${JWT_ACCESS_EXPIRES}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_REFRESH_EXPIRES: ${JWT_REFRESH_EXPIRES}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      BCRYPT_ROUNDS: ${BCRYPT_ROUNDS}
+
+      # File Upload Configuration
+      AWS_REGION: ${AWS_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_S3_BUCKET_NAME: ${AWS_S3_BUCKET_NAME}
+
+      # Other configurations
+      AUDIT_LOG_RETENTION_DAYS: ${AUDIT_LOG_RETENTION_DAYS}
+      AUDIT_LOG_ENCRYPTION: ${AUDIT_LOG_ENCRYPTION}
+      OCR_ENABLED: ${OCR_ENABLED}
+      OCR_LANGUAGE: ${OCR_LANGUAGE}
+      FTS_ENABLED: ${FTS_ENABLED}
+      FTS_LANGUAGE: ${FTS_LANGUAGE}
+      NOTIFICATION_RETENTION_DAYS: ${NOTIFICATION_RETENTION_DAYS}
+      REAL_TIME_NOTIFICATIONS: ${REAL_TIME_NOTIFICATIONS}
+      DIGITAL_SIGNATURE_ENABLED: ${DIGITAL_SIGNATURE_ENABLED}
+      SIGNATURE_EXPIRY_DAYS: ${SIGNATURE_EXPIRY_DAYS}
+      WATERMARK_ENABLED: ${WATERMARK_ENABLED}
+      WATERMARK_TEXT: ${WATERMARK_TEXT}
+      DLP_ENABLED: ${DLP_ENABLED}
+      DLP_PATTERNS: ${DLP_PATTERNS}
+    volumes:
+      - app_uploads:/app/uploads
+      - app_temp:/app/temp
+      - app_logs:/app/logs
+    networks:
+      - secure_doc_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'node', 'healthcheck.js']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: secure_doc_nginx
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    ports:
+      - '80:80'
+      - '443:443'
+    networks:
+      - secure_doc_network
+    depends_on:
+      - app
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'nginx', '-t']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+    driver: local
+  app_uploads:
+    driver: local
+  app_temp:
+    driver: local
+  app_logs:
+    driver: local
+  nginx_logs:
+    driver: local
+
+networks:
+  secure_doc_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

@@ -110,16 +110,16 @@ async function main(): Promise<void> {
   // Create users (matching init.sql)
   console.log('👥 Creating users...');
   const adminPassword = await bcrypt.hash('admin123', 12);
-  const almightyPassword = await bcrypt.hash('almighty123', 12);
+  const almightyPassword = await bcrypt.hash('admin123', 12);
   const managerPassword = await bcrypt.hash('manager123', 12);
   const employeePassword = await bcrypt.hash('employee123', 12);
 
   const adminUser = await prisma.user.upsert({
-    where: { email: 'admin@company.com' },
+    where: { email: 'hocvu2003@gmail.com' },
     update: {},
     create: {
       id: 'user-admin',
-      email: 'admin@company.com',
+      email: 'hocvu2003@gmail.com',
       username: 'admin',
       passwordHash: adminPassword,
       firstName: 'System',
@@ -132,14 +132,14 @@ async function main(): Promise<void> {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const almightyUser = await prisma.user.upsert({
-    where: { email: 'almighty@company.com' },
+    where: { email: 'hocvt2@vmogroup.com' },
     update: {},
     create: {
-      id: 'user-almighty',
-      email: 'almighty@company.com',
-      username: 'almighty',
+      id: 'user-admin',
+      email: 'hocvt2@vmogroup.com',
+      username: 'admin',
       passwordHash: almightyPassword,
-      firstName: 'Almighty',
+      firstName: 'Admin',
       lastName: 'Master',
       roleId: adminRole.id,
       departmentId: itDept.id,
@@ -547,7 +547,6 @@ async function main(): Promise<void> {
       },
     }),
   ]);
-
 
   // Create comments
   console.log('💬 Creating comments...');
