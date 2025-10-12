@@ -3,6 +3,9 @@
 # Build stage
 FROM node:18-alpine AS builder
 
+# Update packages for security
+RUN apk update && apk upgrade
+
 # Set working directory
 WORKDIR /app
 
@@ -25,10 +28,11 @@ RUN npm run build
 # Production stage
 FROM node:18-alpine AS production
 
-# Install PostgreSQL client and create app user for security
-RUN apk add --no-cache postgresql-client \
-  && addgroup -g 1001 -S nodejs \
-  && adduser -S nestjs -u 1001
+# Install PostgreSQL client, update packages, and create app user for security
+RUN apk update && apk upgrade && \
+    apk add --no-cache postgresql-client && \
+    addgroup -g 1001 -S nodejs && \
+    adduser -S nestjs -u 1001
 
 # Set working directory
 WORKDIR /app
@@ -56,4 +60,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node healthcheck.js
 
 # Start application
-CMD ["sh", "./scripts/startup.sh"]
+CMD ["npm", "run", "startup"]
