@@ -75,6 +75,8 @@ services:
       - app_uploads:/app/uploads
       - app_temp:/app/temp
       - app_logs:/app/logs
+    ports:
+      - '3000:3000'
     networks:
       - secure_doc_network
     depends_on:
@@ -87,27 +89,27 @@ services:
       timeout: 10s
       retries: 3
 
-  # Nginx Reverse Proxy
-  nginx:
-    image: nginx:alpine
-    container_name: secure_doc_nginx
-    volumes:
-      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-      - nginx_logs:/var/log/nginx
-    ports:
-      - '80:80'
-      - '443:443'
-    networks:
-      - secure_doc_network
-    depends_on:
-      - app
-    restart: unless-stopped
-    healthcheck:
-      test: ['CMD', 'nginx', '-t']
-      interval: 30s
-      timeout: 10s
-      retries: 3
+  # Nginx Reverse Proxy (disabled - using direct app access)
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: secure_doc_nginx
+  #   volumes:
+  #     - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+  #     - ./nginx/ssl:/etc/nginx/ssl:ro
+  #     - nginx_logs:/var/log/nginx
+  #   ports:
+  #     - '8080:80'
+  #     - '8443:443'
+  #   networks:
+  #     - secure_doc_network
+  #   depends_on:
+  #     - app
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ['CMD', 'nginx', '-t']
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
 
 volumes:
   postgres_data:
