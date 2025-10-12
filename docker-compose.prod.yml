@@ -1,7 +1,5 @@
 # ===== PRODUCTION DOCKER COMPOSE FOR EC2 =====
 
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
