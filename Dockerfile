@@ -13,7 +13,7 @@ WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Install dependencies
+# Install dependencies (now includes build tools in production deps)
 RUN npm ci --only=production
 
 # Copy source code
