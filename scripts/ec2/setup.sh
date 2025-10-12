@@ -2,7 +2,10 @@
 
 # ===== EC2 INITIAL SETUP SCRIPT =====
 # Run this script on your EC2 instance to set up the environment
+
+# Set non-interactive mode to avoid prompts
 export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=a
 
 set -e
 
@@ -150,7 +153,8 @@ fi
 # Setup automatic security updates
 echo "🔄 Setting up automatic security updates..."
 sudo apt install -y unattended-upgrades
-sudo dpkg-reconfigure -plow unattended-upgrades
+echo 'unattended-upgrades unattended-upgrades/enable_auto_updates boolean true' | sudo debconf-set-selections
+sudo dpkg-reconfigure -f noninteractive unattended-upgrades
 
 # Create backup script
 echo "💾 Creating backup script..."
