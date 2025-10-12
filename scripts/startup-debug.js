@@ -13,49 +13,64 @@ async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function testDatabaseConnection() {
+  log('🔍 Testing database connection...');
+
+  try {
+    // Test if PostgreSQL is listening on port 5432
+    await execAsync('nc -z postgres 5432', { timeout: 5000 });
+    log('✅ PostgreSQL port 5432 is open!');
+
+    // Test if PostgreSQL accepts connections
+    await execAsync('pg_isready -h postgres -p 5432 -U postgres', { timeout: 5000 });
+    log('✅ PostgreSQL accepts connections!');
+
+    return true;
+  } catch (error) {
+    log(`❌ Database connection test failed: ${error.message}`);
+    return false;
+  }
+}
+
 async function waitForDatabase() {
   log('⏳ Waiting for PostgreSQL to be ready...');
 
   let attempts = 0;
-  const maxAttempts = 60; // Increase timeout
+  const maxAttempts = 30;
 
   while (attempts < maxAttempts) {
     attempts++;
 
-    try {
-      // Simple approach: try to run prisma generate to test connection
-      await execAsync('npx prisma generate', { timeout: 10000 });
+    // Test database connection
+    const isReady = await testDatabaseConnection();
 
-      // If generate works, try a simple query to test if DB is really ready
-      await execAsync('npx prisma db push --accept-data-loss', { timeout: 15000 });
-
+    if (isReady) {
       log('✅ PostgreSQL is ready!');
       return;
-    } catch (error) {
-      log(`PostgreSQL not ready yet (attempt ${attempts}/${maxAttempts}). Waiting...`);
-
-      if (attempts >= maxAttempts) {
-        log('❌ PostgreSQL connection timeout');
-        log(`Last error: ${error.message}`);
-        throw new Error('PostgreSQL connection timeout');
-      }
-
-      await sleep(5000); // Increase wait time
     }
+
+    log(`PostgreSQL not ready yet (attempt ${attempts}/${maxAttempts}). Waiting...`);
+
+    if (attempts >= maxAttempts) {
+      log('❌ PostgreSQL connection timeout');
+      log('🔍 Checking container status...');
+      try {
+        const { stdout } = await execAsync('docker ps');
+        log(`Docker containers: ${stdout}`);
+      } catch (err) {
+        log('Could not check docker status');
+      }
+      throw new Error('PostgreSQL connection timeout');
+    }
+
+    await sleep(2000);
   }
 }
 
 async function setupDatabase() {
   try {
     log('🗄️ Setting up database...');
-
-    // Just run migrations and seed, generate already done in waitForDatabase
-    log('� Running migrations...');
-    await execAsync('npx prisma migrate deploy');
-
-    log('🌱 Seeding database...');
-    await execAsync('npx prisma db seed');
-
+    await execAsync('npm run db:setup');
     log('✅ Database setup completed!');
   } catch (error) {
     log(`⚠️ Database setup failed: ${error.message}`);
@@ -104,6 +119,7 @@ async function main() {
     // Check environment
     const isDocker = process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgres:');
     log(isDocker ? '🐳 Running in Docker environment' : '💻 Running in local environment');
+    log(`Database URL: ${process.env.DATABASE_URL}`);
 
     // Wait for PostgreSQL to be ready
     await waitForDatabase();
