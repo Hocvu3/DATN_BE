@@ -76,7 +76,7 @@ services:
       - app_temp:/app/temp
       - app_logs:/app/logs
     ports:
-      - '3000:3000'
+      - '127.0.0.1:3000:3000'  # Only expose to localhost for nginx proxy
     networks:
       - secure_doc_network
     depends_on:
@@ -89,7 +89,7 @@ services:
       timeout: 10s
       retries: 3
 
-  # Nginx Reverse Proxy (disabled - using direct app access)
+  # Nginx Reverse Proxy (disabled - using system nginx)
   # nginx:
   #   image: nginx:alpine
   #   container_name: secure_doc_nginx
