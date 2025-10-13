@@ -17,10 +17,11 @@ services:
       - secure_doc_network
     restart: unless-stopped
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres']
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: ['CMD-SHELL', 'pg_isready -h localhost -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   # Application
   app:
@@ -31,6 +32,9 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/secure_document_management?schema=public
+      # Add connection retry and timeout parameters
+      DATABASE_CONNECTION_LIMIT: 10
+      DATABASE_CONNECTION_TIMEOUT: 30000
       PORT: 3000
       APP_URL: ${APP_URL}
       FRONTEND_URL: ${FRONTEND_URL}
@@ -80,14 +84,14 @@ services:
     networks:
       - secure_doc_network
     depends_on:
-      postgres:
-        condition: service_healthy
+      - postgres
     restart: unless-stopped
     healthcheck:
       test: ['CMD', 'node', 'healthcheck.js']
-      interval: 30s
+      interval: 20s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 15s
 
   # Nginx Reverse Proxy (disabled - using system nginx)
   # nginx:
