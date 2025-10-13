@@ -28,9 +28,9 @@ RUN npm run build
 # Production stage
 FROM node:18-alpine AS production
 
-# Install PostgreSQL client, update packages, and create app user for security
+# Install PostgreSQL client, bash, update packages, and create app user for security
 RUN apk update && apk upgrade && \
-    apk add --no-cache postgresql-client && \
+    apk add --no-cache postgresql-client bash && \
     addgroup -g 1001 -S nodejs && \
     adduser -S nestjs -u 1001
 
