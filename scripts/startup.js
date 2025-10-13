@@ -44,9 +44,9 @@ async function simpleDbCheck() {
     // Try pg_isready first (faster)
     try {
       log('🔍 Testing PostgreSQL connection with pg_isready...');
-      const pgHost = process.env.DB_HOST || 'postgres';  // Thường là 'postgres' trong docker-compose
+      const pgHost = process.env.DB_HOST || 'postgres'; // Thường là 'postgres' trong docker-compose
       const pgPort = process.env.DB_PORT || '5432';
-      
+
       await execAsync(`pg_isready -h ${pgHost} -p ${pgPort}`, { timeout: 5000 });
       return true;
     } catch (pgIsReadyError) {
@@ -148,16 +148,18 @@ async function resetDatabase() {
     return true;
   } catch (error) {
     log(`⚠️ Database reset failed: ${error.message}`);
-    
+
     // Thêm diagnose để debug
     try {
       log('🔍 Diagnostic: Checking PostgreSQL status...');
-      const { stdout } = await execAsync(`pg_isready -h ${process.env.DB_HOST || 'postgres'} -p ${process.env.DB_PORT || '5432'}`);
+      const { stdout } = await execAsync(
+        `pg_isready -h ${process.env.DB_HOST || 'postgres'} -p ${process.env.DB_PORT || '5432'}`,
+      );
       log(`📊 pg_isready result: ${stdout.trim()}`);
     } catch (diagError) {
       log(`📊 pg_isready error: ${diagError.message}`);
     }
-    
+
     return false;
   }
 }
@@ -187,7 +189,7 @@ async function setupDatabase() {
   // CÁCH MẠNH TAY: LUÔN XÓA & TẠO LẠI DATABASE MỚI
   log('🔄 HARD RESET: Luôn xóa & tạo lại database mới khi khởi động');
   const resetSuccess = await resetDatabase();
-  
+
   let dbSyncSuccess = false;
 
   if (resetSuccess) {
@@ -201,7 +203,7 @@ async function setupDatabase() {
     }
   } else {
     log('⚠️ Hard reset failed, trying regular sync...');
-    
+
     try {
       log('� Syncing schema with db push (production)...');
       await execAsync('npx prisma db push --accept-data-loss', { timeout: 30000 });
@@ -299,7 +301,9 @@ async function main() {
       await setupDatabase();
     } else {
       log('⚠️ PostgreSQL không sẵn sàng - bỏ qua phần setup database');
-      log('📢 TIP: Nếu liên tục gặp lỗi, hãy chạy: docker-compose -f docker-compose.prod.yml --env-file .env.prod down -v');
+      log(
+        '📢 TIP: Nếu liên tục gặp lỗi, hãy chạy: docker-compose -f docker-compose.prod.yml --env-file .env.prod down -v',
+      );
       log('📢 Sau đó: docker-compose -f docker-compose.prod.yml --env-file .env.prod up -d');
     }
 
