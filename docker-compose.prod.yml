@@ -80,7 +80,7 @@ services:
       - app_temp:/app/temp
       - app_logs:/app/logs
     ports:
-      - '127.0.0.1:3000:3000' # Only expose to localhost for nginx proxy
+      - '3000:3000' # Expose to all interfaces for direct access and Nginx proxy
     networks:
       - secure_doc_network
     depends_on:
