@@ -75,15 +75,15 @@ $PSQL_CONNECT -c "CREATE DATABASE $DB_NAME;" || echo "⚠️ Failed to create da
 # ===== SETUP DATABASE =====
 echo "🗄️ Setting up database..."
 
-# Sinh Prisma client
+# Sinh Prisma client và đẩy schema trực tiếp
 echo "📋 Generating Prisma client..."
 npx prisma generate || echo "⚠️ Failed to generate Prisma client (will continue)"
 
-# Sử dụng db push thay vì migrate
-echo "📊 Pushing schema to database..."
+# Đẩy schema trực tiếp thay vì migration
+echo "📊 Pushing schema với db push..."
 npx prisma db push --accept-data-loss --force-reset || echo "⚠️ Failed to push schema (will continue)"
 
-# Seed database
+# Thêm dữ liệu seed
 echo "🌱 Seeding database..."
 npx prisma db seed || echo "⚠️ Failed to seed database (will continue)"
 
