@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # Script để khởi động ứng dụng với reset database hoàn toàn
-# Version: 2.0 - HARD RESET MODE
+# Version: 3.0 - EXTREME RESET MODE
 
 echo "🚀 Starting Secure Document Management System..."
-echo "⚠️ SUPER HARD RESET MODE: Database sẽ được xóa và tạo lại hoàn toàn!"
+echo "⚠️ EXTREME RESET MODE: Database sẽ được xóa và tạo lại hoàn toàn!"
 
 # Thiết lập các biến môi trường
 if [ -n "$DATABASE_URL" ] && echo "$DATABASE_URL" | grep -q "postgres:"; then
@@ -34,7 +34,7 @@ fi
 
 echo "⏳ Waiting for PostgreSQL to be ready..."
 # Tăng số lần thử và thời gian chờ
-MAX_ATTEMPTS=60
+MAX_ATTEMPTS=120
 ATTEMPT=0
 
 while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
@@ -49,12 +49,18 @@ while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
     fi
     
     if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-        echo "⚠️ PostgreSQL connection timeout - will continue anyway"
+        echo "⚠️ PostgreSQL connection timeout - will try to continue anyway"
+        # Thêm thông tin chẩn đoán
+        echo "📊 Connection info: Host=$DB_HOST, Port=$DB_PORT, User=$DB_USER, DB=$DB_NAME"
+        echo "📊 Checking PostgreSQL container status..."
+        docker ps | grep postgres || echo "No PostgreSQL container found running!"
+        echo "📊 Checking PostgreSQL container logs..."
+        docker logs $(docker ps | grep postgres | awk '{print $1}') 2>/dev/null || echo "Could not get logs"
     fi
 done
 
 # ===== SUPER HARD RESET DATABASE =====
-echo "🔄 SUPER HARD RESET: Xóa hoàn toàn và tạo lại database từ đầu..."
+echo "🔄 EXTREME RESET: Xóa hoàn toàn và tạo lại database từ đầu..."
 
 # 1. Ngắt kết nối hiện có
 echo "🔌 Closing all existing connections to $DB_NAME..."
@@ -62,15 +68,28 @@ $PSQL_CONNECT -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE d
 
 # 2. Drop database với FORCE (PostgreSQL 13+)
 echo "🗑️ Dropping database $DB_NAME..."
-$PSQL_CONNECT -c "DROP DATABASE IF EXISTS $DB_NAME WITH (FORCE);" || \
-$PSQL_CONNECT -c "DROP DATABASE IF EXISTS $DB_NAME;" || echo "⚠️ Failed to drop database (will continue)"
+$PSQL_CONNECT -c "DROP DATABASE IF EXISTS \"$DB_NAME\" WITH (FORCE);" 2>/dev/null || \
+$PSQL_CONNECT -c "DROP DATABASE IF EXISTS \"$DB_NAME\";" 2>/dev/null || \
+echo "⚠️ Failed to drop database (will continue)"
 
 # 3. Tạm dừng để đảm bảo kết nối đã đóng
-sleep 3
+sleep 5
 
-# 4. Tạo lại database
+# 4. Kiểm tra xem database đã bị xóa thật chưa
+echo "🔍 Verifying database was dropped..."
+DB_EXISTS=$($PSQL_CONNECT -t -c "SELECT 1 FROM pg_database WHERE datname='$DB_NAME';" 2>/dev/null)
+if [ -n "$DB_EXISTS" ]; then
+    echo "⚠️ Warning: Database still exists despite drop attempt. Trying harder..."
+    $PSQL_CONNECT -c "UPDATE pg_database SET datallowconn = false WHERE datname = '$DB_NAME';"
+    sleep 2
+    $PSQL_CONNECT -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$DB_NAME';"
+    sleep 2
+    $PSQL_CONNECT -c "DROP DATABASE IF EXISTS \"$DB_NAME\";"
+fi
+
+# 5. Tạo lại database
 echo "🆕 Creating database $DB_NAME..."
-$PSQL_CONNECT -c "CREATE DATABASE $DB_NAME;" || echo "⚠️ Failed to create database (will continue)"
+$PSQL_CONNECT -c "CREATE DATABASE \"$DB_NAME\";" || echo "⚠️ Failed to create database (will continue)"
 
 # ===== SETUP DATABASE =====
 echo "🗄️ Setting up database..."
@@ -81,7 +100,10 @@ npx prisma generate || echo "⚠️ Failed to generate Prisma client (will conti
 
 # Đẩy schema trực tiếp thay vì migration
 echo "📊 Pushing schema với db push..."
-npx prisma db push --accept-data-loss --force-reset || echo "⚠️ Failed to push schema (will continue)"
+npx prisma db push --accept-data-loss --force-reset || (
+    echo "⚠️ Failed to push schema with --force-reset, trying with just --accept-data-loss..."
+    npx prisma db push --accept-data-loss || echo "⚠️ All db push attempts failed!"
+)
 
 # Thêm dữ liệu seed
 echo "🌱 Seeding database..."

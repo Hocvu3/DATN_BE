@@ -47,7 +47,9 @@ COPY --from=builder --chown=nestjs:nodejs /app/scripts ./scripts
 COPY --from=builder --chown=nestjs:nodejs /app/healthcheck.js ./healthcheck.js
 
 # Create necessary directories and set ownership
-RUN mkdir -p /app/uploads /app/temp /app/logs && chown -R nestjs:nodejs /app/uploads /app/temp /app/logs
+RUN mkdir -p /app/uploads /app/temp /app/logs && \
+    chown -R nestjs:nodejs /app/uploads /app/temp /app/logs && \
+    chmod +x /app/scripts/*.sh
 
 # Switch to non-root user
 USER nestjs
