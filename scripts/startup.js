@@ -41,10 +41,19 @@ function parseDatabaseURL(url) {
 
 async function simpleDbCheck() {
   try {
-    // Just test basic connection without db push
-    await execAsync('npx prisma generate', { timeout: 10000 });
+    // Try pg_isready first (faster)
+    try {
+      log('🔍 Testing PostgreSQL connection with pg_isready...');
+      const pgHost = process.env.DB_HOST || 'postgres';  // Thường là 'postgres' trong docker-compose
+      const pgPort = process.env.DB_PORT || '5432';
+      
+      await execAsync(`pg_isready -h ${pgHost} -p ${pgPort}`, { timeout: 5000 });
+      return true;
+    } catch (pgIsReadyError) {
+      log('⚠️ pg_isready failed, falling back to direct connection test');
+    }
 
-    // Simple query to test connection
+    // Fallback: Simple query to test connection
     const testCmd = `psql "${process.env.DATABASE_URL}" -c "SELECT 1;" 2>/dev/null || echo "connection test"`;
     await execAsync(testCmd, { timeout: 5000 });
 
@@ -85,7 +94,7 @@ async function waitForDatabase() {
 }
 
 async function resetDatabase() {
-  log('🔄 Resetting database due to schema conflicts...');
+  log('🔄 CÁCH MẠNH TAY: Xóa hoàn toàn và tạo lại database từ đầu...');
 
   try {
     const dbInfo = parseDatabaseURL(process.env.DATABASE_URL);
@@ -98,23 +107,57 @@ async function resetDatabase() {
     // Kết nối đến postgres default db để có thể drop/create database hiện tại
     const pgConnectionString = `postgres://${dbInfo.user}:${dbInfo.password}@${dbInfo.host}:${dbInfo.port}/postgres`;
 
-    // Drop database
-    log(`🗑️ Dropping database: ${dbInfo.database}`);
-    await execAsync(
-      `psql "${pgConnectionString}" -c "DROP DATABASE IF EXISTS ${dbInfo.database};"`,
-      { timeout: 10000 },
-    );
+    try {
+      // 1. Terminate all connections to database first
+      log(`🔌 Closing all existing connections to ${dbInfo.database}...`);
+      await execAsync(
+        `psql "${pgConnectionString}" -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${dbInfo.database}';"`,
+        { timeout: 15000 },
+      );
+      log('✅ All connections terminated');
+    } catch (connError) {
+      log(`⚠️ Error terminating connections (non-critical): ${connError.message}`);
+    }
 
-    // Create database lại
+    // 2. Drop database with force
+    log(`🗑️ Dropping database FORCE: ${dbInfo.database}`);
+    try {
+      await execAsync(
+        `psql "${pgConnectionString}" -c "DROP DATABASE IF EXISTS ${dbInfo.database} WITH (FORCE);"`,
+        { timeout: 15000 },
+      );
+    } catch (dropError) {
+      // Một số phiên bản PostgreSQL không hỗ trợ WITH (FORCE)
+      log('⚠️ Drop with FORCE failed, trying regular drop...');
+      await execAsync(
+        `psql "${pgConnectionString}" -c "DROP DATABASE IF EXISTS ${dbInfo.database};"`,
+        { timeout: 15000 },
+      );
+    }
+
+    // 3. Đợi giữa các bước để đảm bảo mọi kết nối đã đóng hoàn toàn
+    await sleep(3000);
+
+    // 4. Create database lại
     log(`🆕 Creating database: ${dbInfo.database}`);
     await execAsync(`psql "${pgConnectionString}" -c "CREATE DATABASE ${dbInfo.database};"`, {
-      timeout: 10000,
+      timeout: 15000,
     });
 
-    log('✅ Database reset successful!');
+    log('✅ Database reset SUCCESSFUL!');
     return true;
   } catch (error) {
     log(`⚠️ Database reset failed: ${error.message}`);
+    
+    // Thêm diagnose để debug
+    try {
+      log('🔍 Diagnostic: Checking PostgreSQL status...');
+      const { stdout } = await execAsync(`pg_isready -h ${process.env.DB_HOST || 'postgres'} -p ${process.env.DB_PORT || '5432'}`);
+      log(`📊 pg_isready result: ${stdout.trim()}`);
+    } catch (diagError) {
+      log(`📊 pg_isready error: ${diagError.message}`);
+    }
+    
     return false;
   }
 }
@@ -141,40 +184,31 @@ async function setupDatabase() {
     log(`⚠️ Prisma client generation failed: ${genError.message}`);
   }
 
+  // CÁCH MẠNH TAY: LUÔN XÓA & TẠO LẠI DATABASE MỚI
+  log('🔄 HARD RESET: Luôn xóa & tạo lại database mới khi khởi động');
+  const resetSuccess = await resetDatabase();
+  
   let dbSyncSuccess = false;
 
-  try {
-    if (process.env.NODE_ENV === 'production') {
-      log('📋 Syncing schema with db push (production)...');
+  if (resetSuccess) {
+    try {
+      log('📋 Syncing schema with db push after hard reset...');
       await execAsync('npx prisma db push --accept-data-loss', { timeout: 30000 });
       log('✅ Database schema synchronized!');
       dbSyncSuccess = true;
-    } else {
-      log('🔄 Running database migrations (dev)...');
-      await execAsync('npx prisma migrate deploy', { timeout: 30000 });
-      log('✅ Migrations applied!');
-      dbSyncSuccess = true;
+    } catch (err) {
+      log(`⚠️ Schema sync failed after hard reset: ${err.message}`);
     }
-  } catch (err) {
-    log(`⚠️ Schema sync/migrate failed: ${err.message}`);
-
-    // Nếu lỗi P3005 (schema không rỗng), thử reset database và chạy lại
-    if (err.message.includes('P3005') || err.message.includes('schema is not empty')) {
-      log('🔄 Detected P3005 error - database schema conflicts');
-
-      // Thử reset database
-      const resetSuccess = await resetDatabase();
-
-      if (resetSuccess) {
-        try {
-          log('🔁 Retrying schema sync after database reset...');
-          await execAsync('npx prisma db push --accept-data-loss', { timeout: 30000 });
-          log('✅ Database schema synchronized after reset!');
-          dbSyncSuccess = true;
-        } catch (retryErr) {
-          log(`⚠️ Schema sync failed after reset: ${retryErr.message}`);
-        }
-      }
+  } else {
+    log('⚠️ Hard reset failed, trying regular sync...');
+    
+    try {
+      log('� Syncing schema with db push (production)...');
+      await execAsync('npx prisma db push --accept-data-loss', { timeout: 30000 });
+      log('✅ Database schema synchronized!');
+      dbSyncSuccess = true;
+    } catch (err) {
+      log(`⚠️ Schema sync/migrate failed: ${err.message}`);
     }
   }
 
@@ -248,6 +282,7 @@ async function startApplication() {
 
 async function main() {
   log('🚀 Starting Secure Document Management System...');
+  log('⚠️ HARD RESET MODE: Luôn tạo lại database từ đầu khi khởi động');
 
   // Check environment
   const isDocker = process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgres:');
@@ -259,9 +294,13 @@ async function main() {
 
     // Setup database only if PostgreSQL is ready
     if (dbReady) {
+      // Khẳng định lại một lần nữa về chiến lược hard reset
+      log('🗑️ HARD RESET STRATEGY: Deleting and recreating database from scratch');
       await setupDatabase();
     } else {
-      log('⚠️ Skipping database setup due to PostgreSQL connection issues');
+      log('⚠️ PostgreSQL không sẵn sàng - bỏ qua phần setup database');
+      log('📢 TIP: Nếu liên tục gặp lỗi, hãy chạy: docker-compose -f docker-compose.prod.yml --env-file .env.prod down -v');
+      log('📢 Sau đó: docker-compose -f docker-compose.prod.yml --env-file .env.prod up -d');
     }
 
     // Start application
