@@ -118,9 +118,9 @@ async function bootstrap() {
 
   // Start server
   const port = process.env.PORT ?? 3000;
-  await app.listen(port);
-  console.log(`App is running on: http://localhost:${port}`);
-  console.log(`API endpoints available at: http://localhost:${port}/api`);
-  console.log(`Swagger UI available at: http://localhost:${port}/api`);
+  await app.listen(port,'0.0.0.0');
+  console.log(`App is running on: http://0.0.0.0:${port}`);
+  console.log(`API endpoints available at: http://0.0.0.0:${port}/api`);
+  console.log(`Swagger UI available at: http://0.0.0.0:${port}/api`);
 }
 void bootstrap();
