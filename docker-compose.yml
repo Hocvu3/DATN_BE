@@ -21,7 +21,8 @@ services:
       - secure_doc_network
     restart: unless-stopped
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      # test: ['CMD-SHELL', 'pg_isready -U postgres']
+      test: ['CMD', 'pg_isready', '-h', 'postgres', '-U', 'postgres']
       interval: 30s
       timeout: 10s
       retries: 3

@@ -10,6 +10,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_INITDB_ARGS: '--encoding=UTF-8 --lc-collate=C --lc-ctype=C'
+    ports:
+      - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -17,7 +19,8 @@ services:
       - secure_doc_network
     restart: unless-stopped
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -h localhost -U postgres']
+      # test: ['CMD-SHELL', 'pg_isready -h localhost -U postgres']
+      test: ['CMD', 'pg_isready', '-h', 'postgres', '-U', 'postgres']
       interval: 10s
       timeout: 5s
       retries: 5
