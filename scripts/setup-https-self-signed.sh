@@ -186,23 +186,31 @@ server {
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
-    # CORS headers (cho phép Vercel frontend truy cập)
-    # Thay đổi origin theo domain Vercel của bạn
-    add_header Access-Control-Allow-Origin "*" always;
-    add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, PATCH" always;
-    add_header Access-Control-Allow-Headers "Authorization, Content-Type, X-Requested-With" always;
-    add_header Access-Control-Allow-Credentials "true" always;
-
-    # Handle preflight requests
-    if (\$request_method = OPTIONS) {
-        return 204;
-    }
+    # CORS headers - Must be in location block to work with all responses
+    # These will be duplicated in location blocks below
 
     # Request size limits
     client_max_body_size 50M;
 
     # Proxy to Node.js app
     location / {
+        # CORS headers - must be in location to work with all status codes
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, PATCH" always;
+        add_header Access-Control-Allow-Headers "Authorization, Content-Type, X-Requested-With, Accept" always;
+        add_header Access-Control-Allow-Credentials "true" always;
+        
+        # Handle preflight requests
+        if (\$request_method = OPTIONS) {
+            add_header Access-Control-Allow-Origin "*" always;
+            add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, PATCH" always;
+            add_header Access-Control-Allow-Headers "Authorization, Content-Type, X-Requested-With, Accept" always;
+            add_header Access-Control-Allow-Credentials "true" always;
+            add_header Content-Length 0;
+            add_header Content-Type text/plain;
+            return 204;
+        }
+        
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -221,6 +229,7 @@ server {
 
     # Health check endpoint
     location /api/health {
+        add_header Access-Control-Allow-Origin "*" always;
         proxy_pass http://localhost:3000;
         access_log off;
     }

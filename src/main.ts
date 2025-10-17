@@ -12,10 +12,11 @@ import helmet from 'helmet';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // CORS MUST be enabled FIRST before any middleware
   app.enableCors({
     origin: true, // Allow any origin
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    allowedHeaders: 'Content-Type,Authorization,Accept',
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: 'Content-Type,Authorization,Accept,X-Requested-With',
     exposedHeaders: 'Authorization',
     credentials: true,
     preflightContinue: false,
@@ -45,6 +46,9 @@ async function bootstrap() {
   process.on('unhandledRejection', reason => {
     logger.error(`Unhandled Promise Rejection: ${String(reason)}`);
   });
+
+  // Set global prefix for all routes BEFORE Swagger
+  app.setGlobalPrefix('api');
 
   // Swagger config
   const config = new DocumentBuilder()
@@ -78,29 +82,14 @@ async function bootstrap() {
     },
   });
 
-  // Set global prefix for all routes
-  app.setGlobalPrefix('api');
-
-  // Use Helmet for security headers with proper config
+  // Use Helmet for security headers - DISABLE CSP for API server
   app.use(
     helmet({
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", 'data:', 'https:'],
-          connectSrc: ["'self'", 'https://*.vercel.app', 'https://13.55.233.7'], // Allow Vercel and EC2
-        },
-      },
-      crossOriginEmbedderPolicy: false, // Important for CORS
-      crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow cross-origin
+      contentSecurityPolicy: false, // Disable CSP completely for API
+      crossOriginEmbedderPolicy: false,
+      crossOriginOpenerPolicy: false,
+      crossOriginResourcePolicy: false,
       xFrameOptions: { action: 'deny' },
-      hsts: {
-        maxAge: 31536000,
-        includeSubDomains: true,
-        preload: true,
-      },
       referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     }),
   );
