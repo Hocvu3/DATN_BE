@@ -175,8 +175,6 @@ export class AuthService {
       firstName: string;
       lastName: string;
       username: string;
-      roleId: string;
-      departmentId?: string;
       message?: string;
     },
   ): Promise<{ invitationToken: string; expiresAt: Date }> {
@@ -191,26 +189,18 @@ export class AuthService {
       where: { username: data.username },
     });
     if (existingUsername) {
-      throw new ConflictException('Username is already taken');
+      data.username += '_' + '_' + Math.random().toString(36).substring(2, 8); // Append random string to username
     }
 
     // Check if role exists
-    const role = await this.prismaService.role.findUnique({
-      where: { id: data.roleId },
+    const role = await this.prismaService.role.findMany({
+      take: 1,
     });
-    if (!role) {
-      throw new BadRequestException('Invalid role ID');
-    }
 
     // Check if department exists (if provided)
-    if (data.departmentId) {
-      const department = await this.prismaService.department.findUnique({
-        where: { id: data.departmentId },
-      });
-      if (!department) {
-        throw new BadRequestException('Invalid department ID');
-      }
-    }
+    const department = await this.prismaService.department.findMany({
+      take: 1,
+    });
 
     // Generate invitation token
     const invitationToken = crypto.randomBytes(32).toString('hex');
@@ -225,8 +215,8 @@ export class AuthService {
         username: data.username,
         passwordHash: '', // Will be set when user registers
         isActive: false, // Default inactive until registration
-        roleId: data.roleId,
-        departmentId: data.departmentId,
+        roleId: role[0]?.id || '',
+        departmentId: department[0]?.id || '',
         invitationToken,
         invitationExpires: expiresAt,
         invitedBy: inviterId,

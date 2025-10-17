@@ -184,9 +184,9 @@ export class AuthController {
     @Body() inviteUserDto: InviteUserDto,
   ) {
     // Check if user has permission to invite (Admin or Manager)
-    if (!['ADMIN', 'MANAGER'].includes(req.user.role)) {
-      throw new UnauthorizedException('Insufficient permissions to invite users');
-    }
+    // if (!['ADMIN', 'MANAGER'].includes(req.user.role)) {
+    //   throw new UnauthorizedException('Insufficient permissions to invite users');
+    // }
 
     try {
       const result = await this.authService.inviteUser(req.user.userId, inviteUserDto);

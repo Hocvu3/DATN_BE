@@ -66,7 +66,7 @@ async function bootstrap() {
       },
       'access-token',
     )
-    .addServer('/api') // Add API prefix for all Swagger calls
+    // .addServer('/api') // Add API prefix for all Swagger calls
     .build();
   const document = SwaggerModule.createDocument(app, config);
   // Apply global security requirement so all routes default to bearer auth

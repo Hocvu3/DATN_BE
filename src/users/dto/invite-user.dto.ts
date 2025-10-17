@@ -18,15 +18,6 @@ export class InviteUserDto {
   @IsString()
   username!: string;
 
-  @ApiProperty({ example: 'role-employee', description: 'Role ID' })
-  @IsUUID()
-  roleId!: string;
-
-  @ApiProperty({ example: 'dept-sales', description: 'Department ID', required: false })
-  @IsOptional()
-  @IsUUID()
-  departmentId?: string;
-
   @ApiProperty({
     example: 'Welcome to our document management system!',
     description: 'Invitation message',
