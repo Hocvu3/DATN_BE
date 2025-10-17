@@ -12,18 +12,6 @@ import helmet from 'helmet';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Enable CORS first, before any guards
-  // Cors - More detailed configuration
-  // if (process.env.NODE_ENV === 'production') {
-  //   // Prod: restrict to specific origins
-  //   app.enableCors({
-  //     origin: ['https://datn-fe-d.vercel.app', '*'],
-  //     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-  //     allowedHeaders: ['Content-Type', 'Authorization'],
-  //     credentials: true,
-  //   });
-  // } else {
-  // Dev: allow all with more specific settings
   app.enableCors({
     origin: true, // Allow any origin
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
@@ -33,7 +21,6 @@ async function bootstrap() {
     preflightContinue: false,
     optionsSuccessStatus: 204,
   });
-  // }
 
   // Global validation pipe
   app.useGlobalPipes(
@@ -102,10 +89,12 @@ async function bootstrap() {
           defaultSrc: ["'self'"],
           scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", 'data:'],
-          connectSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+          connectSrc: ["'self'", 'https://*.vercel.app', 'https://13.55.233.7'], // Allow Vercel and EC2
         },
       },
+      crossOriginEmbedderPolicy: false, // Important for CORS
+      crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow cross-origin
       xFrameOptions: { action: 'deny' },
       hsts: {
         maxAge: 31536000,
