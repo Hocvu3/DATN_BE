@@ -23,10 +23,32 @@ fi
 
 # Lấy Public IP của EC2
 echo -e "${CYAN}Đang lấy Public IP của EC2...${NC}"
-PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
 
-if [ -z "$PUBLIC_IP" ]; then
-  echo -e "${YELLOW}Không lấy được IP từ metadata, vui lòng nhập IP public:${NC}"
+# Thử nhiều cách để lấy Public IP
+PUBLIC_IP=$(curl -s --max-time 2 http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null)
+
+# Nếu không lấy được từ metadata (IMDSv2 requirement hoặc không phải EC2)
+if [ -z "$PUBLIC_IP" ] || [[ "$PUBLIC_IP" == *"html"* ]]; then
+  # Thử với IMDSv2 token
+  TOKEN=$(curl -s --max-time 2 -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" 2>/dev/null)
+  if [ -n "$TOKEN" ]; then
+    PUBLIC_IP=$(curl -s --max-time 2 -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null)
+  fi
+fi
+
+# Nếu vẫn không được, dùng service bên ngoài
+if [ -z "$PUBLIC_IP" ] || [[ "$PUBLIC_IP" == *"html"* ]]; then
+  PUBLIC_IP=$(curl -s --max-time 2 https://api.ipify.org 2>/dev/null)
+fi
+
+# Nếu vẫn không được, dùng checkip.amazonaws.com
+if [ -z "$PUBLIC_IP" ] || [[ "$PUBLIC_IP" == *"html"* ]]; then
+  PUBLIC_IP=$(curl -s --max-time 2 http://checkip.amazonaws.com 2>/dev/null | tr -d '\n')
+fi
+
+# Cuối cùng, hỏi user nhập thủ công
+if [ -z "$PUBLIC_IP" ] || [[ "$PUBLIC_IP" == *"html"* ]]; then
+  echo -e "${YELLOW}Không lấy được IP tự động, vui lòng nhập IP public của EC2:${NC}"
   read -p "Public IP: " PUBLIC_IP
 fi
 
@@ -87,8 +109,16 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -addext "subjectAltName=IP:$PUBLIC_IP"
 
 # Tạo Diffie-Hellman group
-echo -e "${YELLOW}Đang tạo Diffie-Hellman parameters (có thể mất vài phút)...${NC}"
-openssl dhparam -out $SSL_DIR/dhparam.pem 2048
+echo -e "${YELLOW}Đang tạo Diffie-Hellman parameters...${NC}"
+echo -e "${CYAN}(Có thể mất 5-10 phút, vui lòng đợi...)${NC}"
+
+# Kiểm tra xem đã có file chưa
+if [ -f $SSL_DIR/dhparam.pem ]; then
+  echo -e "${GREEN}✓ DH params đã tồn tại, bỏ qua tạo mới${NC}"
+else
+  openssl dhparam -out $SSL_DIR/dhparam.pem 2048
+  echo -e "${GREEN}✓ DH params đã được tạo xong${NC}"
+fi
 
 # Set permissions
 chmod 600 $SSL_DIR/nginx-selfsigned.key
