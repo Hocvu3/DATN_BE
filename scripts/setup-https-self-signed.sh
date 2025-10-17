@@ -101,12 +101,24 @@ echo -e "\n${BLUE}[3/5] Tạo Self-Signed SSL Certificate...${NC}"
 SSL_DIR="/etc/nginx/ssl"
 mkdir -p $SSL_DIR
 
+# Validate IP address format
+if [[ ! $PUBLIC_IP =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+  echo -e "${RED}✗ IP không hợp lệ: $PUBLIC_IP${NC}"
+  echo -e "${YELLOW}Vui lòng nhập lại IP public của EC2:${NC}"
+  read -p "Public IP: " PUBLIC_IP
+fi
+
 # Tạo private key và certificate
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -keyout $SSL_DIR/nginx-selfsigned.key \
   -out $SSL_DIR/nginx-selfsigned.crt \
   -subj "/C=VN/ST=HCM/L=HCM/O=Development/CN=$PUBLIC_IP" \
-  -addext "subjectAltName=IP:$PUBLIC_IP"
+  -addext "subjectAltName=IP:$PUBLIC_IP" 2>/dev/null
+
+if [ ! -f $SSL_DIR/nginx-selfsigned.key ] || [ ! -f $SSL_DIR/nginx-selfsigned.crt ]; then
+  echo -e "${RED}✗ Tạo certificate thất bại!${NC}"
+  exit 1
+fi
 
 # Tạo Diffie-Hellman group
 echo -e "${YELLOW}Đang tạo Diffie-Hellman parameters...${NC}"
@@ -142,18 +154,18 @@ else
 fi
 
 # Tạo cấu hình Nginx với HTTPS
-cat > $NGINX_CONF << EOL
+cat > $NGINX_CONF << 'EOL'
 # HTTP server - redirect to HTTPS
 server {
     listen 80;
-    server_name $PUBLIC_IP;
-    return 301 https://\$server_name\$request_uri;
+    server_name _;
+    return 301 https://$host$request_uri;
 }
 
 # HTTPS server
 server {
     listen 443 ssl http2;
-    server_name $PUBLIC_IP;
+    server_name _;
 
     # SSL certificate
     ssl_certificate $SSL_DIR/nginx-selfsigned.crt;
