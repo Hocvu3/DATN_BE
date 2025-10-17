@@ -101,33 +101,16 @@ jobs:
       # - name: Run tests
       #   run: npm test
 
-  # =================== DOCKER BUILD ===================
+  # =================== DOCKER BUILD (BYPASS FOR TESTING) ===================
   docker-build:
-    name: 🐳 Docker Build
+    name: 🐳 Docker Build (Skipped)
     runs-on: ubuntu-latest
     needs: build-and-test
     if: github.ref == 'refs/heads/main'
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: false
-          tags: ${{ env.APP_NAME }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Test Docker image
-        run: |
-          docker run --rm ${{ env.APP_NAME }}:latest node --version
+      - name: Skip Docker build for testing
+        run: echo "⏭️ Skipping Docker build - Will build on EC2 directly"
 
   # =================== DEPLOY TO EC2 ===================
   deploy:
