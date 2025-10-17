@@ -154,12 +154,12 @@ else
 fi
 
 # Tạo cấu hình Nginx với HTTPS
-cat > $NGINX_CONF << 'EOL'
+cat > $NGINX_CONF << EOL
 # HTTP server - redirect to HTTPS
 server {
     listen 80;
     server_name _;
-    return 301 https://$host$request_uri;
+    return 301 https://\$host\$request_uri;
 }
 
 # HTTPS server
