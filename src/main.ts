@@ -14,26 +14,26 @@ async function bootstrap() {
 
   // Enable CORS first, before any guards
   // Cors - More detailed configuration
-  if (process.env.NODE_ENV === 'production') {
-    // Prod: restrict to specific origins
-    app.enableCors({
-      origin: ['https://your-fe.vercel.app', 'https://your-custom-domain.com'],
-      methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-      allowedHeaders: ['Content-Type', 'Authorization'],
-      credentials: true,
-    });
-  } else {
-    // Dev: allow all with more specific settings
-    app.enableCors({
-      origin: true, // Allow any origin
-      methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-      allowedHeaders: 'Content-Type,Authorization,Accept',
-      exposedHeaders: 'Authorization',
-      credentials: true,
-      preflightContinue: false,
-      optionsSuccessStatus: 204,
-    });
-  }
+  // if (process.env.NODE_ENV === 'production') {
+  //   // Prod: restrict to specific origins
+  //   app.enableCors({
+  //     origin: ['https://datn-fe-d.vercel.app', '*'],
+  //     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  //     allowedHeaders: ['Content-Type', 'Authorization'],
+  //     credentials: true,
+  //   });
+  // } else {
+  // Dev: allow all with more specific settings
+  app.enableCors({
+    origin: true, // Allow any origin
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    allowedHeaders: 'Content-Type,Authorization,Accept',
+    exposedHeaders: 'Authorization',
+    credentials: true,
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
+  });
+  // }
 
   // Global validation pipe
   app.useGlobalPipes(
@@ -50,7 +50,7 @@ async function bootstrap() {
   // Apply global interceptors and filters
   app.useGlobalInterceptors(
     new BigIntSerializerInterceptor(), // Run BigInt serializer first
-    new TransformInterceptor()
+    new TransformInterceptor(),
   );
   app.useGlobalFilters(new HttpExceptionFilter());
 
@@ -118,7 +118,7 @@ async function bootstrap() {
 
   // Start server
   const port = process.env.PORT ?? 3000;
-  await app.listen(port,'0.0.0.0');
+  await app.listen(port, '0.0.0.0');
   console.log(`App is running on: http://0.0.0.0:${port}`);
   console.log(`API endpoints available at: http://0.0.0.0:${port}/api`);
   console.log(`Swagger UI available at: http://0.0.0.0:${port}/api`);
