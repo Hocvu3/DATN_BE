@@ -2,10 +2,10 @@
 
 # ===== SETUP SSL + NGINX FOR api.docuflow.id.vn =====
 # Script này sẽ:
-# 1. Xóa SSL certificates và Nginx config cũ
-# 2. Cài đặt Certbot (Let's Encrypt)
-# 3. Tạo SSL certificate cho domain
-# 4. Cấu hình Nginx với HTTPS
+# 1. Kiểm tra và giữ SSL certificate nếu đã có
+# 2. Cài đặt Certbot (Let's Encrypt) nếu chưa có
+# 3. Tạo SSL certificate nếu chưa có (skip nếu đã có)
+# 4. Cập nhật Nginx config với HTTPS
 
 set -e
 
@@ -33,31 +33,31 @@ fi
 OS=$(cat /etc/os-release | grep "^ID=" | cut -d'=' -f2 | tr -d '"')
 echo -e "${CYAN}Hệ điều hành: $OS${NC}"
 
-# ===== STEP 1: CLEANUP OLD SSL & NGINX CONFIG =====
-echo -e "\n${BLUE}[1/6] Xóa SSL certificates và Nginx config cũ...${NC}"
+# Check if certificate already exists
+CERT_EXISTS=false
+if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
+  CERT_EXISTS=true
+  echo -e "${GREEN}✓ Certificate đã tồn tại cho $DOMAIN${NC}"
+  echo -e "${CYAN}Sẽ skip bước tạo certificate và chỉ cập nhật Nginx config${NC}"
+fi
+
+# ===== STEP 1: CLEANUP OLD NGINX CONFIG ONLY =====
+echo -e "\n${BLUE}[1/6] Xóa Nginx config cũ (giữ nguyên SSL certificate)...${NC}"
 
 # Stop Nginx
 systemctl stop nginx || true
 
-# Remove old SSL certificates
-if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
-  echo -e "${YELLOW}Xóa Let's Encrypt certificates cũ...${NC}"
-  certbot delete --cert-name $DOMAIN --non-interactive || true
-fi
+# Remove old Nginx configs ONLY (KHÔNG xóa certificate)
+echo -e "${YELLOW}Xóa Nginx configs cũ...${NC}"
+rm -f /etc/nginx/sites-available/secure-doc
+rm -f /etc/nginx/sites-enabled/secure-doc
+rm -f /etc/nginx/conf.d/secure-doc.conf
 
+# Only remove old self-signed certs, keep Let's Encrypt
 if [ -d "/etc/nginx/ssl" ]; then
   echo -e "${YELLOW}Xóa self-signed certificates cũ...${NC}"
   rm -rf /etc/nginx/ssl
 fi
-
-# Remove old Nginx configs
-echo -e "${YELLOW}Xóa Nginx configs cũ...${NC}"
-rm -f /etc/nginx/sites-available/secure-doc
-rm -f /etc/nginx/sites-available/$DOMAIN
-rm -f /etc/nginx/sites-enabled/secure-doc
-rm -f /etc/nginx/sites-enabled/$DOMAIN
-rm -f /etc/nginx/conf.d/secure-doc.conf
-rm -f /etc/nginx/conf.d/$DOMAIN.conf
 
 echo -e "${GREEN}✓ Đã xóa SSL và Nginx config cũ${NC}"
 
@@ -138,28 +138,34 @@ systemctl enable nginx
 
 echo -e "${GREEN}✓ Nginx config tạm đã được tạo${NC}"
 
-# ===== STEP 5: OBTAIN SSL CERTIFICATE =====
-echo -e "\n${BLUE}[5/6] Tạo SSL certificate từ Let's Encrypt...${NC}"
-echo -e "${YELLOW}Đang xác thực domain và tạo certificate...${NC}"
-echo -e "${CYAN}(Domain $DOMAIN phải trỏ đến IP này)${NC}"
+# ===== STEP 5: OBTAIN SSL CERTIFICATE (Skip nếu đã có) =====
+if [ "$CERT_EXISTS" = true ]; then
+  echo -e "\n${BLUE}[5/6] SSL certificate đã tồn tại - Skip bước này${NC}"
+  echo -e "${GREEN}✓ Sử dụng certificate hiện có${NC}"
+  certbot certificates
+else
+  echo -e "\n${BLUE}[5/6] Tạo SSL certificate từ Let's Encrypt...${NC}"
+  echo -e "${YELLOW}Đang xác thực domain và tạo certificate...${NC}"
+  echo -e "${CYAN}(Domain $DOMAIN phải trỏ đến IP này)${NC}"
 
-# Get SSL certificate
-certbot certonly --nginx \
-  --non-interactive \
-  --agree-tos \
-  --email $EMAIL \
-  --domains $DOMAIN
+  # Get SSL certificate
+  certbot certonly --nginx \
+    --non-interactive \
+    --agree-tos \
+    --email $EMAIL \
+    --domains $DOMAIN
 
-if [ $? -ne 0 ]; then
-  echo -e "${RED}✗ Không thể tạo SSL certificate!${NC}"
-  echo -e "${YELLOW}Kiểm tra:${NC}"
-  echo -e "${CYAN}1. Domain $DOMAIN đã trỏ đúng IP chưa?${NC}"
-  echo -e "${CYAN}2. Port 80 đã mở chưa?${NC}"
-  echo -e "${CYAN}3. Nginx đang chạy chưa?${NC}"
-  exit 1
+  if [ $? -ne 0 ]; then
+    echo -e "${RED}✗ Không thể tạo SSL certificate!${NC}"
+    echo -e "${YELLOW}Kiểm tra:${NC}"
+    echo -e "${CYAN}1. Domain $DOMAIN đã trỏ đúng IP chưa?${NC}"
+    echo -e "${CYAN}2. Port 80 đã mở chưa?${NC}"
+    echo -e "${CYAN}3. Nginx đang chạy chưa?${NC}"
+    exit 1
+  fi
+
+  echo -e "${GREEN}✓ SSL certificate đã được tạo thành công${NC}"
 fi
-
-echo -e "${GREEN}✓ SSL certificate đã được tạo thành công${NC}"
 
 # ===== STEP 6: CONFIGURE NGINX WITH SSL =====
 echo -e "\n${BLUE}[6/6] Cấu hình Nginx với HTTPS...${NC}"
