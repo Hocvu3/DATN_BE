@@ -206,8 +206,13 @@ server {
     client_max_body_size 50M;
 
     location / {
-        # CORS headers - Cho phép Vercel frontend
-        add_header 'Access-Control-Allow-Origin' 'https://datn-fe-d.vercel.app' always;
+        # CORS headers - Cho phép nhiều frontend origins
+        set \$cors '';
+        if (\$http_origin ~* ^https://(datn-fe-d\\.vercel\\.app|docuflow\\.id\\.vn)\$) {
+            set \$cors "\$http_origin";
+        }
+
+        add_header 'Access-Control-Allow-Origin' "\$cors" always;
         add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS, PATCH' always;
         add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Accept, X-Requested-With' always;
         add_header 'Access-Control-Allow-Credentials' 'true' always;
