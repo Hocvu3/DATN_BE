@@ -33,31 +33,32 @@ fi
 OS=$(cat /etc/os-release | grep "^ID=" | cut -d'=' -f2 | tr -d '"')
 echo -e "${CYAN}Hệ điều hành: $OS${NC}"
 
-# Check if certificate already exists
-CERT_EXISTS=false
-if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
-  CERT_EXISTS=true
-  echo -e "${GREEN}✓ Certificate đã tồn tại cho $DOMAIN${NC}"
-  echo -e "${CYAN}Sẽ skip bước tạo certificate và chỉ cập nhật Nginx config${NC}"
-fi
-
-# ===== STEP 1: CLEANUP OLD NGINX CONFIG ONLY =====
-echo -e "\n${BLUE}[1/6] Xóa Nginx config cũ (giữ nguyên SSL certificate)...${NC}"
+# ===== STEP 1: CLEANUP ALL CERTIFICATES & NGINX CONFIG =====
+echo -e "\n${BLUE}[1/6] Xóa TẤT CẢ SSL certificates và Nginx config cũ...${NC}"
 
 # Stop Nginx
 systemctl stop nginx || true
 
-# Remove old Nginx configs ONLY (KHÔNG xóa certificate)
-echo -e "${YELLOW}Xóa Nginx configs cũ...${NC}"
-rm -f /etc/nginx/sites-available/secure-doc
-rm -f /etc/nginx/sites-enabled/secure-doc
-rm -f /etc/nginx/conf.d/secure-doc.conf
+# Remove ALL Let's Encrypt certificates (bao gồm staging)
+if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
+  echo -e "${YELLOW}Xóa tất cả Let's Encrypt certificates...${NC}"
+  certbot delete --cert-name $DOMAIN --non-interactive || true
+fi
 
-# Only remove old self-signed certs, keep Let's Encrypt
+# Remove self-signed certificates
 if [ -d "/etc/nginx/ssl" ]; then
-  echo -e "${YELLOW}Xóa self-signed certificates cũ...${NC}"
+  echo -e "${YELLOW}Xóa self-signed certificates...${NC}"
   rm -rf /etc/nginx/ssl
 fi
+
+# Remove ALL Nginx configs
+echo -e "${YELLOW}Xóa Nginx configs cũ...${NC}"
+rm -f /etc/nginx/sites-available/secure-doc
+rm -f /etc/nginx/sites-available/$DOMAIN
+rm -f /etc/nginx/sites-enabled/secure-doc
+rm -f /etc/nginx/sites-enabled/$DOMAIN
+rm -f /etc/nginx/conf.d/secure-doc.conf
+rm -f /etc/nginx/conf.d/$DOMAIN.conf
 
 echo -e "${GREEN}✓ Đã xóa SSL và Nginx config cũ${NC}"
 
@@ -138,34 +139,39 @@ systemctl enable nginx
 
 echo -e "${GREEN}✓ Nginx config tạm đã được tạo${NC}"
 
-# ===== STEP 5: OBTAIN SSL CERTIFICATE (Skip nếu đã có) =====
-if [ "$CERT_EXISTS" = true ]; then
-  echo -e "\n${BLUE}[5/6] SSL certificate đã tồn tại - Skip bước này${NC}"
-  echo -e "${GREEN}✓ Sử dụng certificate hiện có${NC}"
-  certbot certificates
-else
-  echo -e "\n${BLUE}[5/6] Tạo SSL certificate từ Let's Encrypt...${NC}"
-  echo -e "${YELLOW}Đang xác thực domain và tạo certificate...${NC}"
-  echo -e "${CYAN}(Domain $DOMAIN phải trỏ đến IP này)${NC}"
+# ===== STEP 5: OBTAIN SSL CERTIFICATE =====
+echo -e "\n${BLUE}[5/6] Tạo SSL certificate từ Let's Encrypt...${NC}"
+echo -e "${YELLOW}Đang xác thực domain và tạo certificate...${NC}"
+echo -e "${CYAN}(Domain $DOMAIN phải trỏ đến IP này)${NC}"
 
-  # Get SSL certificate
-  certbot certonly --nginx \
-    --non-interactive \
-    --agree-tos \
-    --email $EMAIL \
-    --domains $DOMAIN
+# Get SSL certificate
+certbot certonly --nginx \
+  --non-interactive \
+  --agree-tos \
+  --email $EMAIL \
+  --domains $DOMAIN
 
-  if [ $? -ne 0 ]; then
-    echo -e "${RED}✗ Không thể tạo SSL certificate!${NC}"
-    echo -e "${YELLOW}Kiểm tra:${NC}"
-    echo -e "${CYAN}1. Domain $DOMAIN đã trỏ đúng IP chưa?${NC}"
-    echo -e "${CYAN}2. Port 80 đã mở chưa?${NC}"
-    echo -e "${CYAN}3. Nginx đang chạy chưa?${NC}"
-    exit 1
+if [ $? -ne 0 ]; then
+  echo -e "${RED}✗ Không thể tạo SSL certificate!${NC}"
+  echo -e "${YELLOW}Có thể do rate limit hoặc domain không trỏ đúng IP${NC}"
+  
+  # Check rate limit từ log
+  if [ -f "/var/log/letsencrypt/letsencrypt.log" ]; then
+    RATE_LIMIT_DATE=$(grep -oP "retry after \K[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}" /var/log/letsencrypt/letsencrypt.log | tail -1)
+    if [ ! -z "$RATE_LIMIT_DATE" ]; then
+      echo -e "${CYAN}Có thể tạo certificate mới sau: $RATE_LIMIT_DATE UTC${NC}"
+      echo -e "${CYAN}(Let's Encrypt giới hạn 5 certificates/tuần cho 1 domain)${NC}"
+    fi
   fi
-
-  echo -e "${GREEN}✓ SSL certificate đã được tạo thành công${NC}"
+  
+  echo -e "\n${YELLOW}Kiểm tra:${NC}"
+  echo -e "${CYAN}1. Domain $DOMAIN đã trỏ đúng IP chưa?${NC}"
+  echo -e "${CYAN}2. Port 80 đã mở chưa?${NC}"
+  echo -e "${CYAN}3. Nginx đang chạy chưa?${NC}"
+  exit 1
 fi
+
+echo -e "${GREEN}✓ SSL certificate đã được tạo thành công${NC}"
 
 # ===== STEP 6: CONFIGURE NGINX WITH SSL =====
 echo -e "\n${BLUE}[6/6] Cấu hình Nginx với HTTPS...${NC}"

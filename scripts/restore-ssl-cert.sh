@@ -29,7 +29,16 @@ echo -e "${CYAN}Hệ điều hành: $OS${NC}"
 # Check if archive exists
 if [ ! -d "/etc/letsencrypt/archive/$DOMAIN" ]; then
   echo -e "${RED}✗ Không tìm thấy certificate archive cho $DOMAIN${NC}"
-  echo -e "${YELLOW}Certificate đã bị xóa hoàn toàn. Phải đợi đến 2025-11-06${NC}"
+  echo -e "${YELLOW}Certificate đã bị xóa hoàn toàn.${NC}"
+  
+  # Check rate limit từ log
+  if [ -f "/var/log/letsencrypt/letsencrypt.log" ]; then
+    RATE_LIMIT_DATE=$(grep -oP "retry after \K[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}" /var/log/letsencrypt/letsencrypt.log | tail -1)
+    if [ ! -z "$RATE_LIMIT_DATE" ]; then
+      echo -e "${CYAN}Có thể tạo certificate mới sau: $RATE_LIMIT_DATE UTC${NC}"
+    fi
+  fi
+  
   exit 1
 fi
 
@@ -50,6 +59,24 @@ echo -e "${CYAN}Latest cert: $LATEST_CERT${NC}"
 echo -e "${CYAN}Latest chain: $LATEST_CHAIN${NC}"
 echo -e "${CYAN}Latest fullchain: $LATEST_FULLCHAIN${NC}"
 echo -e "${CYAN}Latest privkey: $LATEST_PRIVKEY${NC}"
+
+# Check if certificate is STAGING
+if openssl x509 -in "$LATEST_CERT" -text -noout | grep -q "STAGING"; then
+  echo -e "${RED}✗ Certificate trong archive là STAGING certificate!${NC}"
+  echo -e "${YELLOW}Không restore staging certificate.${NC}"
+  
+  # Check rate limit từ log
+  if [ -f "/var/log/letsencrypt/letsencrypt.log" ]; then
+    RATE_LIMIT_DATE=$(grep -oP "retry after \K[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}" /var/log/letsencrypt/letsencrypt.log | tail -1)
+    if [ ! -z "$RATE_LIMIT_DATE" ]; then
+      echo -e "${CYAN}Có thể tạo production certificate sau: $RATE_LIMIT_DATE UTC${NC}"
+    fi
+  fi
+  
+  exit 1
+fi
+
+echo -e "${GREEN}✓ Certificate là PRODUCTION certificate${NC}"
 
 # Create symlinks
 ln -sf "$LATEST_CERT" /etc/letsencrypt/live/$DOMAIN/cert.pem
