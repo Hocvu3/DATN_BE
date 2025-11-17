@@ -1,4 +1,4 @@
-name: DevSecOps Security Pipeline
+name: 🚀 DevSecOps Security Pipeline
 
 on:
   push:
@@ -120,16 +120,8 @@ jobs:
           echo "| 🔍 Step 4 | SonarQube | ${{ needs.sast-scan.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| 🐳 Step 5 | Trivy | ${{ needs.container-scan.result }} |" >> $GITHUB_STEP_SUMMARY
 
-  deploy:
-    name: 🚀 Step 8 - Deploy to EC2
-    runs-on: ubuntu-latest
-    needs: [security-summary]
-    if: github.ref == 'refs/heads/main' && false
-    steps:
-      - run: echo "⏭️ Deployment disabled - Security scans only"
-
   notify:
-    name: 📢 Step 9 - Notification
+    name: 📢 Step 8 - Notification
     runs-on: ubuntu-latest
     needs: [security-summary]
     if: always()

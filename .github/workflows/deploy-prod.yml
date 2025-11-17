@@ -1,0 +1,235 @@
+name: 🚀 Production Deployment
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Trigger khi đánh tag: v1.0.0, v2.1.3, etc.
+
+env:
+  NODE_VERSION: '18'
+  APP_NAME: secure-document-management
+
+jobs:
+  pre-deploy-checks:
+    name: 🔍 Pre-deployment Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: 📌 Validate tag format
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          if [[ ! $TAG_NAME =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Invalid tag format: $TAG_NAME"
+            echo "✅ Expected format: v1.0.0"
+            exit 1
+          fi
+          echo "✅ Tag format valid: $TAG_NAME"
+      
+      - name: 📋 Extract release notes
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          echo "# 🚀 Production Release: $TAG_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Released at:** $(date '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+
+  security-scan:
+    name: 🔒 Security Scanning
+    runs-on: ubuntu-latest
+    needs: [pre-deploy-checks]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+      
+      - run: npm ci
+      
+      - name: 🔐 Secrets Scan
+        uses: GitGuardian/ggshield-action@v1.25.0
+        continue-on-error: true
+        env:
+          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+      
+      - name: 🔒 Dependency Scan
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+  build-and-test:
+    name: 🏗️ Build & Test
+    runs-on: ubuntu-latest
+    needs: [security-scan]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+      
+      - name: 📦 Install dependencies
+        run: npm ci
+      
+      - name: 🔧 Generate Prisma Client
+        run: npx prisma generate
+      
+      - name: 📊 Run linting
+        run: npm run lint
+        continue-on-error: true
+      
+      - name: 🏗️ Build application
+        run: npm run build
+      
+      - name: ✅ Verify build artifacts
+        run: |
+          if [ ! -d "dist" ]; then
+            echo "❌ Build failed: dist/ directory not found"
+            exit 1
+          fi
+          echo "✅ Build successful"
+          ls -la dist/
+      
+      - name: 📤 Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-build
+          path: |
+            dist/
+            package.json
+            package-lock.json
+            prisma/
+          retention-days: 7
+
+  container-scan:
+    name: 🐳 Container Security
+    runs-on: ubuntu-latest
+    needs: [build-and-test]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: 🏗️ Build Docker image
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          docker build -t ${{ env.APP_NAME }}:${TAG_NAME} .
+          docker tag ${{ env.APP_NAME }}:${TAG_NAME} ${{ env.APP_NAME }}:latest
+      
+      - name: 🔍 Scan with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.APP_NAME }}:latest
+          severity: CRITICAL,HIGH
+          exit-code: 0
+
+  deploy-production:
+    name: 🚀 Deploy to EC2 Production
+    runs-on: ubuntu-latest
+    needs: [container-scan]
+    environment:
+      name: production
+      url: https://api.yourdomain.com
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: 📥 Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: production-build
+      
+      - name: 🔑 Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+      
+      - name: 📦 Deploy to EC2
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          
+          # Create deployment directory
+          ssh -i ~/.ssh/deploy_key ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
+            mkdir -p /var/www/${{ env.APP_NAME }}/releases/${TAG_NAME}
+          "
+          
+          # Upload files
+          scp -i ~/.ssh/deploy_key -r \
+            dist/ package.json package-lock.json prisma/ \
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/var/www/${{ env.APP_NAME }}/releases/${TAG_NAME}/
+          
+          # Deploy and restart
+          ssh -i ~/.ssh/deploy_key ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
+            cd /var/www/${{ env.APP_NAME }}/releases/${TAG_NAME}
+            
+            # Install production dependencies
+            npm ci --production
+            
+            # Generate Prisma client
+            npx prisma generate
+            
+            # Run database migrations
+            npx prisma migrate deploy
+            
+            # Update symlink to current release
+            ln -sfn /var/www/${{ env.APP_NAME }}/releases/${TAG_NAME} /var/www/${{ env.APP_NAME }}/current
+            
+            # Restart application (adjust based on your process manager)
+            pm2 restart ${{ env.APP_NAME }} || pm2 start /var/www/${{ env.APP_NAME }}/current/dist/main.js --name ${{ env.APP_NAME }}
+            
+            # Keep only last 5 releases
+            cd /var/www/${{ env.APP_NAME }}/releases
+            ls -t | tail -n +6 | xargs rm -rf
+          "
+      
+      - name: 🏥 Health check
+        run: |
+          echo "⏳ Waiting for application to start..."
+          sleep 10
+          
+          for i in {1..5}; do
+            if curl -f -s ${{ secrets.EC2_HEALTH_CHECK_URL || 'http://${{ secrets.EC2_HOST }}:3000/health' }}; then
+              echo "✅ Health check passed!"
+              exit 0
+            fi
+            echo "⏳ Attempt $i/5 failed, retrying..."
+            sleep 5
+          done
+          
+          echo "❌ Health check failed after 5 attempts"
+          exit 1
+
+  notify:
+    name: 📢 Deployment Notification
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: always()
+    steps:
+      - name: ✅ Success notification
+        if: needs.deploy-production.result == 'success'
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          echo "# ✅ Production Deployment Successful!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${TAG_NAME}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** 🟢 Live" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed at:** $(date '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🎉 Application is now running in production!" >> $GITHUB_STEP_SUMMARY
+      
+      - name: ❌ Failure notification
+        if: needs.deploy-production.result == 'failure'
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          echo "# ❌ Production Deployment Failed!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${TAG_NAME}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** 🔴 Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ Please check the deployment logs and retry." >> $GITHUB_STEP_SUMMARY
+          exit 1
