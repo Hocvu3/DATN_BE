@@ -2,9 +2,6 @@
 /dist
 /node_modules
 /build
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
 
 # Logs
 logs
