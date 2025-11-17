@@ -1,242 +1,579 @@
-name: 🚀 CI/CD - Deploy to EC2
+name: 🚀 DevSecOps Security Pipelinename: 🚀 CI/CD - Deploy to EC2
 
-on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main]
 
-env:
-  NODE_VERSION: '18'
-  APP_NAME: secure-document-management
-  DEPLOY_PATH: /home/ubuntu/secure-document-management
-  DATABASE_URL: postgresql://postgres:password@localhost:5432/secure_document_management_test
 
-jobs:
-  # =================== SECURITY SCANS ===================
-  
-  # 1. Dependency Scanning with Snyk
-  dependency-scan:
-    name: � Dependency Scan (Snyk)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
+on:on:
+
+  push:  push:
+
+    branches: [main, develop]    branches: [main, develop]
+
+  pull_request:  pull_request:
+
+    branches: [main]    branches: [main]
+
+
+
+env:env:
+
+  NODE_VERSION: '18'  NODE_VERSION: '18'
+
+  APP_NAME: secure-document-management  APP_NAME: secure-document-management
+
+  DEPLOY_PATH: /home/ubuntu/secure-document-management  DEPLOY_PATH: /home/ubuntu/secure-document-management
+
+  DATABASE_URL: postgresql://postgres:password@localhost:5432/secure_document_management_test  DATABASE_URL: postgresql://postgres:password@localhost:5432/secure_document_management_test
+
+
+
+jobs:jobs:
+
+  # =================== STAGE 1: QUICK SCANS ===================  # =================== STAGE 1: QUICK SCANS (Fast & Lightweight) ===================
+
+    
+
+  # Step 1: Code Quality & Linting (Fastest - ~30s)  # Step 1: Code Quality & Linting (Fastest - ~30s)
+
+  code-quality:  code-quality:
+
+    name: 📊 Step 1 - Code Quality & Linting    name: 📊 Step 1 - Code Quality & Linting
+
+    runs-on: ubuntu-latest    runs-on: ubuntu-latest
+
+    steps:    steps:
+
+      - name: Checkout code      - name: Checkout code
+
+        uses: actions/checkout@v4        uses: actions/checkout@v4
+
+
+
+      - name: Setup Node.js      - name: Setup Node.js
+
+        uses: actions/setup-node@v4        uses: actions/setup-node@v4
+
+        with:        with:
+
+          node-version: ${{ env.NODE_VERSION }}          node-version: ${{ env.NODE_VERSION }}
+
+          cache: 'npm'          cache: 'npm'
+
+
+
+      - name: Install dependencies      - name: Install dependencies
+
+        run: npm ci        run: npm ci
+
+
+
+      - name: Run ESLint      - name: Run ESLint
+
+        run: npm run lint        run: npm run lint
+
+        continue-on-error: true        continue-on-error: true
+
+
+
+      - name: Run Prettier check      - name: Run Prettier check
+
+        run: npx prettier --check "src/**/*.ts"        run: npx prettier --check "src/**/*.ts"
+
+        continue-on-error: true        continue-on-error: true
+
+
+
+  # Step 2: Secrets Scanning (Fast - ~1min)  # Step 2: Secrets Scanning (Fast - ~1min)
+
+  secrets-scan:  secrets-scan:
+
+    name: 🔐 Step 2 - Secrets Scan (GitGuardian)    name: 🔐 Step 2 - Secrets Scan (GitGuardian)
+
+    runs-on: ubuntu-latest    runs-on: ubuntu-latest
+
+    needs: [code-quality]    needs: [code-quality]
+
+    steps:    steps:
+
+      - name: Checkout code      - name: Checkout code
+
+        uses: actions/checkout@v4        uses: actions/checkout@v4
+
+        with:        with:
+
+          fetch-depth: 0          fetch-depth: 0
+
+
+
+      - name: GitGuardian scan      - name: GitGuardian scan
+
+        uses: GitGuardian/ggshield-action@v1.25.0        uses: GitGuardian/ggshield-action@v1.25.0
+
+        continue-on-error: true        continue-on-error: true
+
+        env:        env:
+
+          GITHUB_PUSH_BEFORE_SHA: ${{ github.event.before }}          GITHUB_PUSH_BEFORE_SHA: ${{ github.event.before }}
+
+          GITHUB_PUSH_BASE_SHA: ${{ github.event.base }}          GITHUB_PUSH_BASE_SHA: ${{ github.event.base }}
+
+          GITHUB_PULL_BASE_SHA: ${{ github.event.pull_request.base.sha }}          GITHUB_PULL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+
+          GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}          GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+
+          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+
+
+
+  # =================== STAGE 2: DEPENDENCY ANALYSIS ===================  # =================== STAGE 2: DEPENDENCY ANALYSIS (Medium Weight) ===================
+
+    
+
+  # Step 3: Dependency Scanning (Medium - ~2min)  # Step 3: Dependency Scanning (Medium - ~2min)
+
+  dependency-scan:  dependency-scan:
+
+    name: 🔒 Step 3 - Dependency Scan (Snyk)    name: 🔒 Step 3 - Dependency Scan (Snyk)
+
+    runs-on: ubuntu-latest    runs-on: ubuntu-latest
+
+    needs: [secrets-scan]    needs: [secrets-scan]
+
+    steps:    steps:
+
+      - name: Checkout code      - name: Checkout code
+
+        uses: actions/checkout@v4        uses: actions/checkout@v4
+
+
+
+      - name: Setup Node.js      - name: Setup Node.js
+
+        uses: actions/setup-node@v4        uses: actions/setup-node@v4
+
+        with:        with:
+
+          node-version: ${{ env.NODE_VERSION }}          node-version: ${{ env.NODE_VERSION }}
+
+          cache: 'npm'          cache: 'npm'
+
+
+
+      - name: Install dependencies      - name: Install dependencies
+
+        run: npm ci        run: npm ci
+
+
+
+      - name: Run Snyk vulnerability scan      - name: Run Snyk to check for vulnerabilities
+
+        uses: snyk/actions/node@master        uses: snyk/actions/node@master
+
+        continue-on-error: true        continue-on-error: true
+
+        env:        env:
+
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+        with:        with:
+
+          args: --severity-threshold=high --json-file-output=snyk-report.json          args: --severity-threshold=high --json-file-output=snyk-report.json
+
+
+
+      - name: Upload Snyk report      - name: Upload Snyk report
+
+        uses: actions/upload-artifact@v3        uses: actions/upload-artifact@v3
+
+        if: always()        if: always()
+
+        with:        with:
+
+          name: snyk-report          name: snyk-report
+
+          path: snyk-report.json          path: snyk-report.json
+
+
+
+  # =================== STAGE 3: CODE ANALYSIS ===================  # 2. Secrets Scanning with GitGuardian
+
+    secrets-scan:
+
+  # Step 4: SAST Scanning (Heavy - ~3-5min)    name: 🔐 Secrets Scan (GitGuardian)
+
+  sast-scan:    runs-on: ubuntu-latest
+
+    name: 🔍 Step 4 - SAST Scan (SonarQube)    steps:
+
+    runs-on: ubuntu-latest      - name: Checkout code
+
+    needs: [dependency-scan]        uses: actions/checkout@v4
+
+    steps:        with:
+
+      - name: Checkout code          fetch-depth: 0
+
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+        with:      - name: GitGuardian scan
 
-      - name: Install dependencies
-        run: npm ci
+          fetch-depth: 0        uses: GitGuardian/ggshield-action@v1.25.0
 
-      - name: Run Snyk to check for vulnerabilities
-        uses: snyk/actions/node@master
         continue-on-error: true
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: --severity-threshold=high --json-file-output=snyk-report.json
 
-      - name: Upload Snyk report
-        uses: actions/upload-artifact@v3
-        if: always()
-        with:
-          name: snyk-report
-          path: snyk-report.json
+      - name: Setup Node.js        env:
 
-  # 2. Secrets Scanning with GitGuardian
-  secrets-scan:
-    name: 🔐 Secrets Scan (GitGuardian)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        uses: actions/setup-node@v4          GITHUB_PUSH_BEFORE_SHA: ${{ github.event.before }}
 
-      - name: GitGuardian scan
-        uses: GitGuardian/ggshield-action@v1.25.0
-        continue-on-error: true
-        env:
-          GITHUB_PUSH_BEFORE_SHA: ${{ github.event.before }}
-          GITHUB_PUSH_BASE_SHA: ${{ github.event.base }}
-          GITHUB_PULL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        with:          GITHUB_PUSH_BASE_SHA: ${{ github.event.base }}
+
+          node-version: ${{ env.NODE_VERSION }}          GITHUB_PULL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+
+          cache: 'npm'          GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+
           GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
 
-  # 3. Container Scanning with Trivy
+      - name: Install dependencies
+
+        run: npm ci  # 3. Container Scanning with Trivy
+
   container-scan:
-    name: 🐳 Container Scan (Trivy)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
 
-      - name: Build Docker image for scanning
+      - name: Generate Prisma Client    name: 🐳 Container Scan (Trivy)
+
+        run: npx prisma generate    runs-on: ubuntu-latest
+
+        continue-on-error: true    steps:
+
+      - name: Checkout code
+
+      - name: Run tests with coverage        uses: actions/checkout@v4
+
+        run: npm run test:cov || echo "No test coverage available"
+
+        continue-on-error: true      - name: Build Docker image for scanning
+
         run: |
-          docker build -t ${{ env.APP_NAME }}:${{ github.sha }} .
 
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        continue-on-error: true
-        with:
+      - name: SonarCloud Scan          docker build -t ${{ env.APP_NAME }}:${{ github.sha }} .
+
+        uses: SonarSource/sonarcloud-github-action@master
+
+        continue-on-error: true      - name: Run Trivy vulnerability scanner
+
+        env:        uses: aquasecurity/trivy-action@master
+
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}        continue-on-error: true
+
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}        with:
+
           image-ref: ${{ env.APP_NAME }}:${{ github.sha }}
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
 
-      - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v2
-        if: always()
-        with:
-          sarif_file: 'trivy-results.sarif'
+      - name: SonarQube Quality Gate check          format: 'sarif'
 
-      - name: Upload Trivy report
-        uses: actions/upload-artifact@v3
+        uses: sonarsource/sonarqube-quality-gate-action@master          output: 'trivy-results.sarif'
+
+        continue-on-error: true          severity: 'CRITICAL,HIGH'
+
+        timeout-minutes: 5
+
+        env:      - name: Upload Trivy results to GitHub Security
+
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}        uses: github/codeql-action/upload-sarif@v2
+
         if: always()
-        with:
+
+      - name: Upload SonarQube results        with:
+
+        uses: actions/upload-artifact@v3          sarif_file: 'trivy-results.sarif'
+
+        if: always()
+
+        with:      - name: Upload Trivy report
+
+          name: sonarqube-results        uses: actions/upload-artifact@v3
+
+          path: .scannerwork/        if: always()
+
+        continue-on-error: true        with:
+
           name: trivy-report
-          path: trivy-results.sarif
 
-  # 4. SAST - Static Application Security Testing with SonarQube
-  sast-scan:
-    name: 🔍 SAST Scan (SonarQube)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
+  # =================== STAGE 4: CONTAINER ANALYSIS ===================          path: trivy-results.sarif
+
+  
+
+  # Step 5: Container Scanning (Heaviest - ~3-5min)  # 4. SAST - Static Application Security Testing with SonarQube
+
+  container-scan:  sast-scan:
+
+    name: 🐳 Step 5 - Container Scan (Trivy)    name: 🔍 SAST Scan (SonarQube)
+
+    runs-on: ubuntu-latest    runs-on: ubuntu-latest
+
+    needs: [sast-scan]    steps:
+
+    steps:      - name: Checkout code
+
+      - name: Checkout code        uses: actions/checkout@v4
+
+        uses: actions/checkout@v4        with:
+
           fetch-depth: 0  # Shallow clones should be disabled for better analysis
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Build Docker image
+
+        run: |      - name: Setup Node.js
+
+          docker build -t ${{ env.APP_NAME }}:${{ github.sha }} .        uses: actions/setup-node@v4
+
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Run Trivy vulnerability scanner          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Generate Prisma Client
-        run: npx prisma generate
+        uses: aquasecurity/trivy-action@master          cache: 'npm'
+
         continue-on-error: true
 
-      - name: Run tests with coverage
-        run: npm run test:cov || echo "No test coverage available"
+        with:      - name: Install dependencies
+
+          image-ref: ${{ env.APP_NAME }}:${{ github.sha }}        run: npm ci
+
+          format: 'sarif'
+
+          output: 'trivy-results.sarif'      - name: Generate Prisma Client
+
+          severity: 'CRITICAL,HIGH'        run: npx prisma generate
+
         continue-on-error: true
+
+      - name: Upload Trivy results to GitHub Security
+
+        uses: github/codeql-action/upload-sarif@v2      - name: Run tests with coverage
+
+        if: always()        run: npm run test:cov || echo "No test coverage available"
+
+        with:        continue-on-error: true
+
+          sarif_file: 'trivy-results.sarif'
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@master
-        continue-on-error: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: Upload Trivy report        uses: SonarSource/sonarcloud-github-action@master
+
+        uses: actions/upload-artifact@v3        continue-on-error: true
+
+        if: always()        env:
+
+        with:          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+          name: trivy-report          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+          path: trivy-results.sarif
 
       - name: SonarQube Quality Gate check
-        uses: sonarsource/sonarqube-quality-gate-action@master
-        continue-on-error: true
-        timeout-minutes: 5
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-      - name: Upload SonarQube results
-        uses: actions/upload-artifact@v3
-        if: always()
-        with:
-          name: sonarqube-results
+  # =================== STAGE 5: DYNAMIC TESTING (Main Branch Only) ===================        uses: sonarsource/sonarqube-quality-gate-action@master
+
+          continue-on-error: true
+
+  # Step 6: DAST Scanning (Only on main branch)        timeout-minutes: 5
+
+  dast-scan:        env:
+
+    name: 🎯 Step 6 - DAST Scan (OWASP ZAP)          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+    runs-on: ubuntu-latest
+
+    needs: [container-scan]      - name: Upload SonarQube results
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'        uses: actions/upload-artifact@v3
+
+    steps:        if: always()
+
+      - name: Checkout code        with:
+
+        uses: actions/checkout@v4          name: sonarqube-results
+
           path: .scannerwork/
-        continue-on-error: true
 
-  # 5. DAST - Dynamic Application Security Testing with OWASP ZAP
-  dast-scan:
-    name: 🎯 DAST Scan (OWASP ZAP)
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: OWASP ZAP Baseline Scan        continue-on-error: true
 
-      - name: OWASP ZAP Baseline Scan
         uses: zaproxy/action-baseline@v0.10.0
-        continue-on-error: true
-        with:
-          target: 'https://${{ secrets.EC2_HOST }}/api'
-          rules_file_name: '.zap/rules.tsv'
-          cmd_options: '-a'
 
-      - name: Upload ZAP report
-        uses: actions/upload-artifact@v3
+        continue-on-error: true  # 5. DAST - Dynamic Application Security Testing with OWASP ZAP
+
+        with:  dast-scan:
+
+          target: 'https://${{ secrets.EC2_HOST }}/api'    name: 🎯 DAST Scan (OWASP ZAP)
+
+          rules_file_name: '.zap/rules.tsv'    runs-on: ubuntu-latest
+
+          cmd_options: '-a'    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+
+      - name: Upload ZAP report      - name: Checkout code
+
+        uses: actions/upload-artifact@v3        uses: actions/checkout@v4
+
         if: always()
+
+        with:      - name: OWASP ZAP Baseline Scan
+
+          name: zap-report        uses: zaproxy/action-baseline@v0.10.0
+
+          path: report_html.html        continue-on-error: true
+
         with:
-          name: zap-report
-          path: report_html.html
 
-  # 6. Code Quality & Linting
-  code-quality:
-    name: 📊 Code Quality Checks
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  # =================== STAGE 6: SUMMARY & REPORTS ===================          target: 'https://${{ secrets.EC2_HOST }}/api'
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+            rules_file_name: '.zap/rules.tsv'
 
-      - name: Install dependencies
-        run: npm ci
+  # Step 7: Security Summary          cmd_options: '-a'
 
-      - name: Run ESLint
-        run: npm run lint
-        continue-on-error: true
-
-      - name: Run Prettier check
-        run: npx prettier --check "src/**/*.ts"
-        continue-on-error: true
-
-  # =================== BUILD & TEST (DISABLED) ===================
-  # Build disabled - Security scans only
-  # build-and-test:
-  #   name: 🏗️ Build & Test
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Skip build
-  #       run: echo "⏭️ Build disabled - Running security scans only"
-
-  # =================== SECURITY SUMMARY ===================
   security-summary:
-    name: 📋 Security Summary
-    runs-on: ubuntu-latest
-    needs: [dependency-scan, secrets-scan, container-scan, sast-scan, code-quality]
-    if: always()
-    steps:
-      - name: Download all reports
+
+    name: 📋 Step 7 - Security Summary      - name: Upload ZAP report
+
+    runs-on: ubuntu-latest        uses: actions/upload-artifact@v3
+
+    needs: [code-quality, secrets-scan, dependency-scan, sast-scan, container-scan]        if: always()
+
+    if: always()        with:
+
+    steps:          name: zap-report
+
+      - name: Download all reports          path: report_html.html
+
         uses: actions/download-artifact@v3
-        continue-on-error: true
 
-      - name: Generate security summary
-        run: |
-          echo "# 🔒 Security Scan Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Scan Results:" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Dependency Scan (Snyk): ${{ needs.dependency-scan.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Secrets Scan (GitGuardian): ${{ needs.secrets-scan.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Container Scan (Trivy): ${{ needs.container-scan.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ SAST Scan (SonarQube): ${{ needs.sast-scan.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Code Quality: ${{ needs.code-quality.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 📊 Reports Available:" >> $GITHUB_STEP_SUMMARY
-          echo "Check the 'Artifacts' section for detailed security reports" >> $GITHUB_STEP_SUMMARY
+        continue-on-error: true  # 6. Code Quality & Linting
 
-  # =================== DEPLOY TO EC2 (DISABLED) ===================
-  deploy:
-    name: 🚀 Deploy to EC2 (Disabled)
+  code-quality:
+
+      - name: Generate security summary    name: 📊 Code Quality Checks
+
+        run: |    runs-on: ubuntu-latest
+
+          echo "# 🔒 DevSecOps Security Scan Summary" >> $GITHUB_STEP_SUMMARY    steps:
+
+          echo "" >> $GITHUB_STEP_SUMMARY      - name: Checkout code
+
+          echo "## 📊 Sequential Scan Results:" >> $GITHUB_STEP_SUMMARY        uses: actions/checkout@v4
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### ⚡ Stage 1: Quick Scans" >> $GITHUB_STEP_SUMMARY      - name: Setup Node.js
+
+          echo "| Step | Tool | Result |" >> $GITHUB_STEP_SUMMARY        uses: actions/setup-node@v4
+
+          echo "|------|------|--------|" >> $GITHUB_STEP_SUMMARY        with:
+
+          echo "| 1️⃣ | Code Quality (ESLint) | ${{ needs.code-quality.result }} |" >> $GITHUB_STEP_SUMMARY          node-version: ${{ env.NODE_VERSION }}
+
+          echo "| 2️⃣ | Secrets (GitGuardian) | ${{ needs.secrets-scan.result }} |" >> $GITHUB_STEP_SUMMARY          cache: 'npm'
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### 🔍 Stage 2-4: Deep Analysis" >> $GITHUB_STEP_SUMMARY      - name: Install dependencies
+
+          echo "| Step | Tool | Result |" >> $GITHUB_STEP_SUMMARY        run: npm ci
+
+          echo "|------|------|--------|" >> $GITHUB_STEP_SUMMARY
+
+          echo "| 3️⃣ | Dependencies (Snyk) | ${{ needs.dependency-scan.result }} |" >> $GITHUB_STEP_SUMMARY      - name: Run ESLint
+
+          echo "| 4️⃣ | SAST (SonarQube) | ${{ needs.sast-scan.result }} |" >> $GITHUB_STEP_SUMMARY        run: npm run lint
+
+          echo "| 5️⃣ | Container (Trivy) | ${{ needs.container-scan.result }} |" >> $GITHUB_STEP_SUMMARY        continue-on-error: true
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "## 📁 Available Reports:" >> $GITHUB_STEP_SUMMARY      - name: Run Prettier check
+
+          echo "- 📄 Snyk Vulnerability Report (JSON)" >> $GITHUB_STEP_SUMMARY        run: npx prettier --check "src/**/*.ts"
+
+          echo "- 📊 SonarQube Analysis Results" >> $GITHUB_STEP_SUMMARY        continue-on-error: true
+
+          echo "- 🐳 Trivy Container Scan (SARIF)" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY  # =================== BUILD & TEST (DISABLED) ===================
+
+          echo "📦 Download reports from **Artifacts** section above" >> $GITHUB_STEP_SUMMARY  # Build disabled - Security scans only
+
+          echo "🔐 View security findings in **Security** tab" >> $GITHUB_STEP_SUMMARY  # build-and-test:
+
+  #   name: 🏗️ Build & Test
+
+  # =================== DEPLOYMENT (DISABLED) ===================  #   runs-on: ubuntu-latest
+
+    #   steps:
+
+  deploy:  #     - name: Skip build
+
+    name: 🚀 Deploy (Disabled)  #       run: echo "⏭️ Build disabled - Running security scans only"
+
     runs-on: ubuntu-latest
+
+    needs: [security-summary]  # =================== SECURITY SUMMARY ===================
+
+    if: github.ref == 'refs/heads/main' && false  security-summary:
+
+    steps:    name: 📋 Security Summary
+
+      - name: Deployment disabled    runs-on: ubuntu-latest
+
+        run: echo "⏭️ Deployment disabled - Security scans only mode"    needs: [dependency-scan, secrets-scan, container-scan, sast-scan, code-quality]
+
+    if: always()
+
+  # =================== NOTIFICATION ===================    steps:
+
+        - name: Download all reports
+
+  notify:        uses: actions/download-artifact@v3
+
+    name: 📢 Final Notification        continue-on-error: true
+
+    runs-on: ubuntu-latest
+
+    needs: [security-summary]      - name: Generate security summary
+
+    if: always()        run: |
+
+    steps:          echo "# 🔒 Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify success          echo "" >> $GITHUB_STEP_SUMMARY
+
+        if: needs.security-summary.result == 'success'          echo "## Scan Results:" >> $GITHUB_STEP_SUMMARY
+
+        run: |          echo "- ✅ Dependency Scan (Snyk): ${{ needs.dependency-scan.result }}" >> $GITHUB_STEP_SUMMARY
+
+          echo "✅ All security scans completed successfully!"          echo "- ✅ Secrets Scan (GitGuardian): ${{ needs.secrets-scan.result }}" >> $GITHUB_STEP_SUMMARY
+
+          echo "🔒 DevSecOps pipeline passed"          echo "- ✅ Container Scan (Trivy): ${{ needs.container-scan.result }}" >> $GITHUB_STEP_SUMMARY
+
+          echo "📊 Check artifacts for detailed reports"          echo "- ✅ SAST Scan (SonarQube): ${{ needs.sast-scan.result }}" >> $GITHUB_STEP_SUMMARY
+
+          echo "🎯 Ready for next steps"          echo "- ✅ Code Quality: ${{ needs.code-quality.result }}" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify failure          echo "## 📊 Reports Available:" >> $GITHUB_STEP_SUMMARY
+
+        if: needs.security-summary.result == 'failure'          echo "Check the 'Artifacts' section for detailed security reports" >> $GITHUB_STEP_SUMMARY
+
+        run: |
+
+          echo "⚠️ Some security scans found issues!"  # =================== DEPLOY TO EC2 (DISABLED) ===================
+
+          echo "📋 Please review the security reports"  deploy:
+
+          echo "🔍 Check GitHub Security tab for details"    name: 🚀 Deploy to EC2 (Disabled)
+
+          echo "🛠️ Fix issues before proceeding"    runs-on: ubuntu-latest
+
     needs: [security-summary]
     if: github.ref == 'refs/heads/main' && false
 
