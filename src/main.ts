@@ -12,16 +12,17 @@ import helmet from 'helmet';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // CORS is handled by Nginx, disable here
-  // app.enableCors({
-  //   origin: true,
-  //   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-  //   allowedHeaders: 'Content-Type,Authorization,Accept,X-Requested-With',
-  //   exposedHeaders: 'Authorization',
-  //   credentials: true,
-  //   preflightContinue: false,
-  //   optionsSuccessStatus: 204,
-  // });
+  if (process.env.NODE_ENV === 'development') {
+    app.enableCors({
+      origin: true,
+      methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+      allowedHeaders: 'Content-Type,Authorization,Accept,X-Requested-With',
+      exposedHeaders: 'Authorization',
+      credentials: true,
+      preflightContinue: false,
+      optionsSuccessStatus: 204,
+    });
+  }
 
   // Global validation pipe
   app.useGlobalPipes(
