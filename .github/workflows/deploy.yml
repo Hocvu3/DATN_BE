@@ -120,87 +120,34 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests with coverage (if available)
+      - name: Generate Prisma Client
+        run: npx prisma generate
+        continue-on-error: true
+
+      - name: Run tests with coverage
         run: npm run test:cov || echo "No test coverage available"
         continue-on-error: true
 
-      # Option 1: SonarCloud (requires SONAR_TOKEN)
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
-        if: ${{ secrets.SONAR_TOKEN != '' }}
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          args: >
-            -Dsonar.projectKey=${{ github.repository_owner }}_${{ github.event.repository.name }}
-            -Dsonar.organization=${{ github.repository_owner }}
-            -Dsonar.sources=src
-            -Dsonar.tests=test
-            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/coverage/**
-
-      # Option 2: SonarScanner CLI (local scan without server)
-      - name: SonarScanner CLI (Standalone)
-        if: ${{ secrets.SONAR_TOKEN == '' }}
-        run: |
-          echo "📊 Running SonarScanner in standalone mode (no server connection)..."
-          
-          # Download and setup SonarScanner
-          wget -q https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
-          unzip -q sonar-scanner-cli-5.0.1.3006-linux.zip
-          export PATH=$PATH:$PWD/sonar-scanner-5.0.1.3006-linux/bin
-          
-          # Create sonar-project.properties if not exists
-          cat > sonar-project.properties << EOF
-          sonar.projectKey=${{ github.repository_owner }}_${{ github.event.repository.name }}
-          sonar.projectName=${{ github.event.repository.name }}
-          sonar.projectVersion=1.0
-          sonar.sources=src
-          sonar.tests=test
-          sonar.sourceEncoding=UTF-8
-          sonar.javascript.lcov.reportPaths=coverage/lcov.info
-          sonar.exclusions=**/node_modules/**,**/dist/**,**/coverage/**,**/*.spec.ts,**/*.test.ts
-          sonar.coverage.exclusions=**/*.spec.ts,**/*.test.ts,**/*.mock.ts
-          EOF
-          
-          echo "✅ SonarScanner configured for local analysis"
-          echo "💡 To upload results to SonarCloud/SonarQube, add SONAR_TOKEN secret"
-        continue-on-error: true
-
-      # Option 3: Custom SonarQube Server
-      - name: SonarQube Server Scan
-        if: ${{ secrets.SONAR_HOST_URL != '' && secrets.SONAR_TOKEN != '' }}
-        uses: sonarsource/sonarqube-scan-action@master
-        continue-on-error: true
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-        with:
-          args: >
-            -Dsonar.projectKey=${{ github.repository_owner }}_${{ github.event.repository.name }}
-            -Dsonar.sources=src
-            -Dsonar.tests=test
-            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
 
       - name: SonarQube Quality Gate check
-        if: ${{ secrets.SONAR_TOKEN != '' }}
         uses: sonarsource/sonarqube-quality-gate-action@master
         continue-on-error: true
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
       - name: Upload SonarQube results
         uses: actions/upload-artifact@v3
         if: always()
         with:
           name: sonarqube-results
-          path: |
-            .scannerwork/
-            sonar-project.properties
+          path: .scannerwork/
         continue-on-error: true
 
   # 5. DAST - Dynamic Application Security Testing with OWASP ZAP
@@ -280,7 +227,7 @@ jobs:
           echo "- ✅ Dependency Scan (Snyk): ${{ needs.dependency-scan.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Secrets Scan (GitGuardian): ${{ needs.secrets-scan.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Container Scan (Trivy): ${{ needs.container-scan.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ SAST Scan (CodeQL): ${{ needs.sast-scan.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ SAST Scan (SonarQube): ${{ needs.sast-scan.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Code Quality: ${{ needs.code-quality.result }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## 📊 Reports Available:" >> $GITHUB_STEP_SUMMARY
