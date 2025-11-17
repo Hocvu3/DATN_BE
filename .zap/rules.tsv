@@ -1,0 +1,31 @@
+# ZAP Scanning Rules
+# Format: RULE_ID	THRESHOLD	[OUTOFSCOPE URL REGEX]
+# IGNORE: Don't fire the alert for this rule
+# INFO: Fire the alert but only at INFO level
+# WARN: Fire the alert at WARN level (default)
+# FAIL: Fail the scan if the alert is fired
+
+# Common rules
+10021	WARN	# X-Content-Type-Options Header Missing
+10023	WARN	# Information Disclosure - Debug Error Messages
+10025	WARN	# Information Disclosure - Sensitive Information in URL
+10026	WARN	# HTTP Parameter Override
+10027	WARN	# Information Disclosure - Suspicious Comments
+10032	WARN	# Viewstate
+10054	WARN	# Cookie Without SameSite Attribute
+10055	WARN	# CSP
+10056	WARN	# X-Debug-Token Information Leak
+10096	WARN	# Timestamp Disclosure
+10097	WARN	# Hash Disclosure
+10098	WARN	# Cross-Domain Misconfiguration
+10105	WARN	# Weak Authentication Method
+10202	WARN	# Absence of Anti-CSRF Tokens
+
+# High priority rules
+40012	FAIL	# Cross Site Scripting (Reflected)
+40014	FAIL	# Cross Site Scripting (Persistent)
+40016	FAIL	# Cross Site Scripting (Persistent - Prime)
+40017	FAIL	# Cross Site Scripting (Persistent - Spider)
+40018	FAIL	# SQL Injection
+90019	FAIL	# Server Side Code Injection
+90020	FAIL	# Remote OS Command Injection

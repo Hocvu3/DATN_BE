@@ -1,0 +1,43 @@
+# GitGuardian Configuration
+# This file configures how GitGuardian scans your repository for secrets
+
+# File patterns to exclude from scanning
+paths-ignore:
+  - "**/*.md"              # Markdown files
+  - "**/package-lock.json" # Lock files
+  - "**/yarn.lock"         # Yarn lock
+  - "**/*.min.js"          # Minified JS
+  - "**/dist/**"           # Build output
+  - "**/build/**"          # Build output
+  - "**/node_modules/**"   # Dependencies
+  - "**/.next/**"          # Next.js build
+  - "**/coverage/**"       # Test coverage
+  - "**/*.log"             # Log files
+
+# Specific secrets to ignore (use with caution)
+matches-ignore:
+  - name: "Test secrets in test files"
+    match: test_.*_key
+  - name: "Example values in documentation"
+    match: "example.*"
+
+# Detectors configuration
+detectors:
+  # Enable all detectors
+  - name: all
+    enabled: true
+    
+# Minimum occurrences before flagging (reduces false positives)
+minimum_occurrences: 1
+
+# Exit codes
+# 0: No secrets found
+# 1: Secrets found
+# 2: Error during scan
+exit-zero: false  # Fail the build if secrets are found
+
+# Verbosity level (0-2)
+verbose: 1
+
+# Output format
+output: default  # Options: default, json, sarif
