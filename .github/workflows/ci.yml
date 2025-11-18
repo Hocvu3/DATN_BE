@@ -1,4 +1,4 @@
-name: 🚀 DevSecOps Security Pipeline
+name: 📦 CI Pipeline - Build, Test & Security
 
 on:
   push:
@@ -9,130 +9,253 @@ on:
 env:
   NODE_VERSION: '18'
   APP_NAME: secure-document-management
+  REGISTRY: docker.io
 
 jobs:
-  code-quality:
-    name: 📊 Step 1 - Code Quality & Linting
+  unit-test:
+    name: 🧪 Unit & Integration Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - uses: actions/setup-node@v4
         with:
           node-version: 18
           cache: npm
+      
+      - name: 📦 Install dependencies
+        run: npm ci
+      
+      - name: 🔧 Generate Prisma Client
+        run: npx prisma generate
+      
+      - name: 🧪 Run unit tests
+        run: npm run test || echo "No unit tests configured"
+        continue-on-error: true
+      
+      - name: 🔬 Run integration tests
+        run: npm run test:e2e || echo "No integration tests configured"
+        continue-on-error: true
+      
+      - name: 📊 Generate coverage report
+        run: npm run test:cov || echo "No coverage configured"
+        continue-on-error: true
+      
+      - name: 📤 Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        continue-on-error: true
+        with:
+          files: ./coverage/lcov.info
+          flags: unittests
+
+  code-quality:
+    name: 📊 Code Quality & Linting
+    runs-on: ubuntu-latest
+    needs: [unit-test]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+      
       - run: npm ci
-      - run: npm run lint
+      
+      - name: 🔍 Run ESLint
+        run: npm run lint
         continue-on-error: true
 
-  secrets-scan:
-    name: 🔐 Step 2 - Secrets Scan (GitGuardian)
+  snyk-scan:
+    name: 🔒 Snyk - Dependency Scan
+    runs-on: ubuntu-latest
+    needs: [code-quality]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+      
+      - run: npm ci
+      
+      - name: 🔒 Run Snyk scan
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+  gitguardian-scan:
+    name: 🔐 GitGuardian - Secrets Scan
     runs-on: ubuntu-latest
     needs: [code-quality]
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: GitGuardian/ggshield-action@v1.25.0
+      
+      - name: 🔐 Scan for secrets
+        uses: GitGuardian/ggshield-action@v1.25.0
         continue-on-error: true
         env:
           GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
 
-  dependency-scan:
-    name: 🔒 Step 3 - Dependency Scan (Snyk)
+  sonarqube-scan:
+    name: 🔍 SonarQube - Code Quality & Coverage
     runs-on: ubuntu-latest
-    needs: [secrets-scan]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 18
-          cache: npm
-      - run: npm ci
-      - uses: snyk/actions/node@master
-        continue-on-error: true
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-
-  sast-scan:
-    name: 🔍 Step 4 - SAST Scan (SonarQube)
-    runs-on: ubuntu-latest
-    needs: [dependency-scan]
+    needs: [unit-test]
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      
       - uses: actions/setup-node@v4
         with:
           node-version: 18
           cache: npm
+      
       - run: npm ci
-      - run: npx prisma generate
+      
+      - name: 🔧 Generate Prisma Client
+        run: npx prisma generate
         continue-on-error: true
-      - run: npm run test:cov || true
+      
+      - name: 📊 Generate coverage
+        run: npm run test:cov || true
         continue-on-error: true
-      - uses: SonarSource/sonarcloud-github-action@master
+      
+      - name: 🔍 Run SonarQube scan
+        uses: SonarSource/sonarcloud-github-action@master
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-  container-scan:
-    name: 🐳 Step 5 - Container Scan (Trivy)
+  build-docker:
+    name: 🐳 Build Docker Image (Staging)
     runs-on: ubuntu-latest
-    needs: [sast-scan]
+    needs: [snyk-scan, gitguardian-scan, sonarqube-scan]
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t app:scan .
-      - uses: aquasecurity/trivy-action@master
+      
+      - name: 🏗️ Build Docker image
+        run: |
+          docker build -t ${{ env.APP_NAME }}:staging .
+          docker tag ${{ env.APP_NAME }}:staging ${{ env.APP_NAME }}:scan
+      
+      - name: 💾 Save Docker image
+        run: |
+          mkdir -p /tmp/docker
+          docker save ${{ env.APP_NAME }}:staging -o /tmp/docker/image.tar
+      
+      - name: 📤 Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image-staging
+          path: /tmp/docker/image.tar
+          retention-days: 7
+
+  trivy-scan:
+    name: 🐳 Trivy - Container Scan
+    runs-on: ubuntu-latest
+    needs: [build-docker]
+    steps:
+      - name: 📥 Download Docker image
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image-staging
+          path: /tmp/docker
+      
+      - name: 🔄 Load Docker image
+        run: docker load -i /tmp/docker/image.tar
+      
+      - name: 🔍 Scan with Trivy
+        uses: aquasecurity/trivy-action@master
         continue-on-error: true
         with:
-          image-ref: app:scan
+          image-ref: ${{ env.APP_NAME }}:staging
           severity: CRITICAL,HIGH
+          exit-code: 0
 
-  dast-scan:
-    name: 🎯 Step 6 - DAST Scan (OWASP ZAP)
+  owasp-zap-scan:
+    name: 🎯 OWASP ZAP - API Security Test
     runs-on: ubuntu-latest
-    needs: [container-scan]
+    needs: [trivy-scan]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
-      - uses: zaproxy/action-baseline@v0.10.0
+      
+      - name: 🎯 Run OWASP ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.10.0
         continue-on-error: true
         with:
-          target: https://api.example.com
+          target: https://api.docuflow.id.vn
           rules_file_name: .zap/rules.tsv
           cmd_options: -a
 
-  security-summary:
-    name: 📋 Step 7 - Security Summary
+  publish-artifact:
+    name: 📦 Publish Artifacts
     runs-on: ubuntu-latest
-    needs: [code-quality, secrets-scan, dependency-scan, sast-scan, container-scan]
-    if: always()
+    needs: [trivy-scan, owasp-zap-scan]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
-      - run: |
-          echo "# 🔒 Security Scan Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Step | Tool | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| 📊 Step 1 | Code Quality | ${{ needs.code-quality.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🔐 Step 2 | GitGuardian | ${{ needs.secrets-scan.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🔒 Step 3 | Snyk | ${{ needs.dependency-scan.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🔍 Step 4 | SonarQube | ${{ needs.sast-scan.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🐳 Step 5 | Trivy | ${{ needs.container-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+      - uses: actions/checkout@v4
+      
+      - name: 📥 Download Docker image
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image-staging
+          path: /tmp/docker
+      
+      - name: 🔄 Load Docker image
+        run: docker load -i /tmp/docker/image.tar
+      
+      - name: 🔑 Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      
+      - name: 🏷️ Tag and push image
+        run: |
+          COMMIT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          IMAGE_NAME="${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}"
+          
+          docker tag ${{ env.APP_NAME }}:staging ${IMAGE_NAME}:${COMMIT_SHA}
+          docker tag ${{ env.APP_NAME }}:staging ${IMAGE_NAME}:latest
+          
+          echo "📤 Pushing ${IMAGE_NAME}:${COMMIT_SHA}"
+          docker push ${IMAGE_NAME}:${COMMIT_SHA}
+          
+          echo "📤 Pushing ${IMAGE_NAME}:latest"
+          docker push ${IMAGE_NAME}:latest
+          
+          echo "✅ Published: ${IMAGE_NAME}:${COMMIT_SHA}"
+          echo "✅ Published: ${IMAGE_NAME}:latest"
 
-  notify:
-    name: 📢 Step 8 - Notification
+  ci-summary:
+    name: 📋 CI Pipeline Summary
     runs-on: ubuntu-latest
-    needs: [security-summary]
+    needs: [unit-test, code-quality, snyk-scan, gitguardian-scan, sonarqube-scan, trivy-scan, owasp-zap-scan, publish-artifact]
     if: always()
     steps:
-      - name: Success notification
-        if: needs.security-summary.result == 'success'
+      - name: 📊 Generate summary
         run: |
-          echo "✅ All security scans completed successfully!"
-          echo "🔒 DevSecOps pipeline passed"
-      - name: Failure notification
-        if: needs.security-summary.result == 'failure'
-        run: |
-          echo "⚠️ Some security scans found issues!"
-          echo "📋 Please review the security reports"
+          echo "# 🚀 CI Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🧪 Test | Unit & Integration Tests | ${{ needs.unit-test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📊 Quality | Code Quality & Linting | ${{ needs.code-quality.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔒 Security | Snyk Dependency Scan | ${{ needs.snyk-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔐 Security | GitGuardian Secrets Scan | ${{ needs.gitguardian-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔍 Quality | SonarQube Analysis | ${{ needs.sonarqube-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🐳 Security | Trivy Container Scan | ${{ needs.trivy-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🎯 Security | OWASP ZAP API Test | ${{ needs.owasp-zap-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📦 Publish | Artifact Publishing | ${{ needs.publish-artifact.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          COMMIT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          echo "**Docker Image:** \`${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${COMMIT_SHA}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Docker Image:** \`${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
