@@ -1,0 +1,57 @@
+# robots.txt for OWASP ZAP Security Scanning
+# This file allows security scanners to identify API endpoints
+
+User-agent: *
+Allow: /
+
+# API Documentation (no /api prefix)
+Allow: /api
+Allow: /api/*
+
+# Health Check (no /api prefix)
+Allow: /health
+
+# Authentication endpoints (with /api prefix)
+Allow: /api/auth
+Allow: /api/auth/login
+Allow: /api/auth/register
+Allow: /api/auth/forgot-password
+Allow: /api/auth/reset-password
+Allow: /api/auth/refresh
+Allow: /api/auth/google
+
+# User endpoints (with /api prefix)
+Allow: /api/users
+Allow: /api/users/*
+
+# Document endpoints (with /api prefix)
+Allow: /api/documents
+Allow: /api/documents/*
+
+# Tag endpoints (with /api prefix)
+Allow: /api/tags
+Allow: /api/tags/*
+
+# Role endpoints (with /api prefix)
+Allow: /api/roles
+Allow: /api/roles/*
+
+# Permission endpoints (with /api prefix)
+Allow: /api/permissions
+Allow: /api/permissions/*
+
+# Comment endpoints (with /api prefix)
+Allow: /api/comments
+Allow: /api/comments/*
+
+# Version endpoints (with /api prefix)
+Allow: /api/versions
+Allow: /api/versions/*
+
+# Department endpoints (with /api prefix)
+Allow: /api/departments
+Allow: /api/departments/*
+
+# Note: Most endpoints require authentication
+# Security scanner should authenticate before testing
+# API base URL: https://api.docuflow.id.vn/api/*

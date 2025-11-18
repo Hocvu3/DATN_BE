@@ -1,6 +1,9 @@
 # GitGuardian Configuration
 # This file configures how GitGuardian scans your repository for secrets
 
+# Version
+version: 2
+
 # File patterns to exclude from scanning
 paths-ignore:
   - "**/*.md"              # Markdown files
@@ -20,24 +23,3 @@ matches-ignore:
     match: test_.*_key
   - name: "Example values in documentation"
     match: "example.*"
-
-# Detectors configuration
-detectors:
-  # Enable all detectors
-  - name: all
-    enabled: true
-    
-# Minimum occurrences before flagging (reduces false positives)
-minimum_occurrences: 1
-
-# Exit codes
-# 0: No secrets found
-# 1: Secrets found
-# 2: Error during scan
-exit-zero: false  # Fail the build if secrets are found
-
-# Verbosity level (0-2)
-verbose: 1
-
-# Output format
-output: default  # Options: default, json, sarif

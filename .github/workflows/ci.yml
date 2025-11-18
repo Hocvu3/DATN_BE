@@ -186,13 +186,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - name: 🔑 Get JWT Token for Authentication
+        id: get-token
+        run: |
+          # Install jq for JSON parsing
+          sudo apt-get update && sudo apt-get install -y jq
+          
+          # Get JWT token
+          RESPONSE=$(curl -s -k -X POST "https://api.docuflow.id.vn/api/auth/login" \
+            -H "Content-Type: application/json" \
+            -d '{"email":"hocvu2003@gmail.com","password":"hocvu"}')
+          
+          echo "Response: $RESPONSE"
+          
+          # Extract token (try multiple possible field names)
+          TOKEN=$(echo "$RESPONSE" | jq -r '.access_token // .accessToken // .token // empty')
+          
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "⚠️ Warning: Could not get JWT token. Scan will run without authentication."
+            echo "authenticated=false" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Successfully obtained JWT token"
+            echo "token=$TOKEN" >> $GITHUB_OUTPUT
+            echo "authenticated=true" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+      
       - name: 🎯 Run OWASP ZAP baseline scan
         uses: zaproxy/action-baseline@v0.10.0
         continue-on-error: true
         with:
           target: https://api.docuflow.id.vn
           rules_file_name: .zap/rules.tsv
-          cmd_options: -a
+          cmd_options: -a -j
+        env:
+          ZAP_AUTH_HEADER_VALUE: ${{ steps.get-token.outputs.authenticated == 'true' && format('Bearer {0}', steps.get-token.outputs.token) || '' }}
 
   publish-artifact:
     name: 📦 Publish Artifacts
@@ -237,7 +265,7 @@ jobs:
   ci-summary:
     name: 📋 CI Pipeline Summary
     runs-on: ubuntu-latest
-    needs: [unit-test, code-quality, snyk-scan, gitguardian-scan, sonarqube-scan, trivy-scan, owasp-zap-scan, publish-artifact]
+    needs: [unit-test, snyk-scan, gitguardian-scan, sonarqube-scan, trivy-scan, owasp-zap-scan, publish-artifact]
     if: always()
     steps:
       - name: 📊 Generate summary
