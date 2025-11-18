@@ -126,11 +126,11 @@ jobs:
         continue-on-error: true
       
       - name: 🔍 Run SonarCloud scan
-        uses: SonarSource/sonarqube-scan-action@v5.0.0
+        uses: SonarSource/sonarcloud-github-action@v3.1.0
         continue-on-error: true
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: https://sonarcloud.io
 
   build-docker:
     name: 🐳 Build Docker Image (Staging)
