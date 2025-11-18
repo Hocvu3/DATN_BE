@@ -125,12 +125,12 @@ jobs:
         run: npm run test:cov || true
         continue-on-error: true
       
-      - name: 🔍 Run SonarQube scan
-        uses: SonarSource/sonarcloud-github-action@master
+      - name: 🔍 Run SonarCloud scan
+        uses: SonarSource/sonarqube-scan-action@v5.0.0
         continue-on-error: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
 
   build-docker:
     name: 🐳 Build Docker Image (Staging)
@@ -199,14 +199,15 @@ jobs:
           
           echo "Response: $RESPONSE"
           
-          # Extract token (try multiple possible field names)
-          TOKEN=$(echo "$RESPONSE" | jq -r '.access_token // .accessToken // .token // empty')
+          # Extract token (check nested data object first)
+          TOKEN=$(echo "$RESPONSE" | jq -r '.data.accessToken // .accessToken // .access_token // .data.token // .token // empty')
           
           if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
             echo "⚠️ Warning: Could not get JWT token. Scan will run without authentication."
+            echo "Response structure: $(echo "$RESPONSE" | jq -c 'keys')"
             echo "authenticated=false" >> $GITHUB_OUTPUT
           else
-            echo "✅ Successfully obtained JWT token"
+            echo "✅ Successfully obtained JWT token (first 20 chars): ${TOKEN:0:20}..."
             echo "token=$TOKEN" >> $GITHUB_OUTPUT
             echo "authenticated=true" >> $GITHUB_OUTPUT
           fi

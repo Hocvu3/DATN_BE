@@ -12,8 +12,8 @@ RESPONSE=$(curl -s -k -X POST "${API_URL}/auth/login" \
   -H "Content-Type: application/json" \
   -d "{\"email\":\"${EMAIL}\",\"password\":\"${PASSWORD}\"}")
 
-# Extract access_token
-ACCESS_TOKEN=$(echo "$RESPONSE" | jq -r '.access_token // .accessToken // .token // empty')
+# Extract access_token (check nested data object)
+ACCESS_TOKEN=$(echo "$RESPONSE" | jq -r '.data.accessToken // .accessToken // .access_token // .data.token // .token // empty')
 
 if [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ]; then
   echo "Error: Failed to get access token" >&2
