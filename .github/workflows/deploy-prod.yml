@@ -86,12 +86,21 @@ jobs:
       name: production
       url: https://api.docuflow.id.vn
     steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
       - name: 🔑 Configure SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+      
+      - name: 📤 Sync docker-compose to EC2
+        run: |
+          echo "📤 Uploading docker-compose.prod.yml to EC2..."
+          scp -i ~/.ssh/deploy_key docker-compose.prod.yml ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/${{ secrets.EC2_USER }}/secure-document-management/
+          echo "✅ docker-compose.prod.yml synced"
       
       - name: 📦 Deploy to EC2
         run: |
