@@ -19,7 +19,8 @@
     "db:seed": "ts-node prisma/seed.ts",
     "db:setup": "npm run db:generate && npm run db:migrate && npm run db:seed",
     "db:studio": "prisma studio",
-    "db:reset": "prisma migrate reset --force"
+    "db:reset": "prisma migrate reset --force",
+    "prepare": "husky"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
@@ -56,6 +57,8 @@
     "uuid": "^13.0.0"
   },
   "devDependencies": {
+    "@commitlint/cli": "^20.1.0",
+    "@commitlint/config-conventional": "^20.0.0",
     "@eslint/eslintrc": "^3.2.0",
     "@eslint/js": "^9.18.0",
     "@nestjs/schematics": "^11.0.0",
@@ -69,6 +72,7 @@
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
     "globals": "^16.0.0",
+    "husky": "^9.1.7",
     "prettier": "^3.4.2",
     "prisma": "^6.19.0",
     "source-map-support": "^0.5.21",

@@ -22,8 +22,8 @@ if [ -n "$DATABASE_URL" ] && echo "$DATABASE_URL" | grep -q "postgres"; then
     echo "Parsed: User=$DB_USER, Host=$DB_HOST, Port=$DB_PORT, DB=$DB_NAME"
     
     WAIT_CMD="pg_isready -h $DB_HOST -p $DB_PORT -U $DB_USER"
-    PSQL_CONNECT="PGPASSWORD=\"$DB_PASSWORD\" psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d postgres"
-    PSQL_DB="PGPASSWORD=\"$DB_PASSWORD\" psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME"
+    # Export password as environment variable
+    export PGPASSWORD="$DB_PASSWORD"
 else
     echo "💻 Local environment detected"
     DB_HOST="${DB_HOST:-localhost}"
@@ -33,8 +33,8 @@ else
     DB_NAME="${DB_NAME:-datn}"
     
     WAIT_CMD="pg_isready -h $DB_HOST -p $DB_PORT -U $DB_USER"
-    PSQL_CONNECT="PGPASSWORD=\"$DB_PASSWORD\" psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d postgres"
-    PSQL_DB="PGPASSWORD=\"$DB_PASSWORD\" psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME"
+    # Export password as environment variable
+    export PGPASSWORD="$DB_PASSWORD"
 fi
 
 echo "📊 Database: $DB_NAME @ $DB_HOST:$DB_PORT"
@@ -64,11 +64,11 @@ done
 
 # ===== CHECK DATABASE =====
 echo "🔍 Checking database..."
-DB_EXISTS=$($PSQL_CONNECT -t -c "SELECT 1 FROM pg_database WHERE datname='$DB_NAME';" 2>/dev/null | xargs || echo "")
+DB_EXISTS=$(psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d postgres -t -c "SELECT 1 FROM pg_database WHERE datname='$DB_NAME';" 2>/dev/null | xargs || echo "")
 
 if [ "$DB_EXISTS" != "1" ]; then
     echo "🆕 Creating database..."
-    $PSQL_CONNECT -c "CREATE DATABASE \"$DB_NAME\";" || exit 1
+    psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d postgres -c "CREATE DATABASE \"$DB_NAME\";" || exit 1
     echo "✅ Database created"
     DB_IS_NEW=true
 else
@@ -82,7 +82,7 @@ npx prisma generate || exit 1
 
 # ===== CHECK TABLES =====
 echo "🔍 Checking database state..."
-TABLE_COUNT=$($PSQL_DB -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';" 2>/dev/null | xargs || echo "0")
+TABLE_COUNT=$(psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';" 2>/dev/null | xargs || echo "0")
 
 echo "📊 Found $TABLE_COUNT tables"
 
@@ -111,7 +111,7 @@ else
     
     # Check if needs seeding
     echo "🔍 Checking seed data..."
-    USER_COUNT=$($PSQL_DB -t -c "SELECT COUNT(*) FROM \"User\" WHERE email='admin@docuflow.com';" 2>/dev/null | xargs || echo "0")
+    USER_COUNT=$(psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -t -c "SELECT COUNT(*) FROM \"User\" WHERE email='admin@docuflow.com';" 2>/dev/null | xargs || echo "0")
     
     if [ "$USER_COUNT" -eq "0" ]; then
         echo "🌱 Seeding data..."
