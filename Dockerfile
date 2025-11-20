@@ -13,8 +13,8 @@ WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Install dependencies (ignore scripts like husky prepare)
-RUN npm ci --only=production --ignore-scripts
+# Install all dependencies (needed for build and native modules)
+RUN npm ci
 
 # Copy source code
 COPY . .
@@ -24,6 +24,9 @@ RUN npx prisma generate
 
 # Build application
 RUN npm run build
+
+# Remove dev dependencies and rebuild native modules for production
+RUN npm prune --production && npm rebuild bcrypt --build-from-source
 
 # Production stage
 FROM node:18-alpine AS production

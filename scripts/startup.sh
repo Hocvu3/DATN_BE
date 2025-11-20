@@ -112,6 +112,7 @@ else
     # Check if needs seeding
     echo "🔍 Checking seed data..."
     USER_COUNT=$(psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -t -c "SELECT COUNT(*) FROM \"User\" WHERE email='admin@docuflow.com';" 2>/dev/null | xargs || echo "0")
+    USER_COUNT=${USER_COUNT:-0}
     
     if [ "$USER_COUNT" -eq "0" ]; then
         echo "🌱 Seeding data..."
