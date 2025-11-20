@@ -8,8 +8,7 @@
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "startup": "bash scripts/startup-new.sh",
-    "startup:js": "node scripts/startup.js",
+    "startup": "bash scripts/startup.sh",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
@@ -17,7 +16,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
-    "db:seed": "npx prisma db seed",
+    "db:seed": "ts-node prisma/seed.ts",
     "db:setup": "npm run db:generate && npm run db:migrate && npm run db:seed",
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset --force"

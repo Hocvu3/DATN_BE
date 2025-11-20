@@ -1,0 +1,133 @@
+#!/bin/bash
+
+# Production Startup Script - Safe Migration & Conditional Seeding
+# Supports both Docker and local environments
+
+set -e  # Exit on error
+
+echo "🚀 Starting Secure Document Management System..."
+
+# ===== ENVIRONMENT DETECTION =====
+if [ -n "$DATABASE_URL" ] && echo "$DATABASE_URL" | grep -q "postgres:"; then
+    echo "🐳 Docker environment detected"
+    
+    # Parse DATABASE_URL
+    DB_USER=$(echo $DATABASE_URL | sed -n 's/.*postgres:\/\/\([^:]*\):.*/\1/p')
+    DB_PASSWORD=$(echo $DATABASE_URL | sed -n 's/.*postgres:\/\/[^:]*:\([^@]*\).*/\1/p')
+    DB_HOST=$(echo $DATABASE_URL | sed -n 's/.*postgres:\/\/[^:]*:[^@]*@\([^:]*\).*/\1/p')
+    DB_PORT=$(echo $DATABASE_URL | sed -n 's/.*postgres:\/\/[^:]*:[^@]*@[^:]*:\([^\/]*\).*/\1/p')
+    DB_NAME=$(echo $DATABASE_URL | sed -n 's/.*postgres:\/\/[^:]*:[^@]*@[^:]*:[^\/]*\/\([^?]*\).*/\1/p')
+    
+    WAIT_CMD="pg_isready -h $DB_HOST -p $DB_PORT -U $DB_USER"
+    PSQL_CONNECT="psql postgres://$DB_USER:$DB_PASSWORD@$DB_HOST:$DB_PORT/postgres"
+    PSQL_DB="psql postgres://$DB_USER:$DB_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME"
+else
+    echo "💻 Local environment detected"
+    DB_HOST="${DB_HOST:-localhost}"
+    DB_PORT="${DB_PORT:-5432}"
+    DB_USER="${DB_USER:-postgres}"
+    DB_PASSWORD="${DB_PASSWORD:-postgres}"
+    DB_NAME="${DB_NAME:-datn}"
+    
+    WAIT_CMD="pg_isready -h $DB_HOST -p $DB_PORT -U $DB_USER"
+    PSQL_CONNECT="PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER"
+    PSQL_DB="PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME"
+fi
+
+echo "📊 Database: $DB_NAME @ $DB_HOST:$DB_PORT"
+
+# ===== WAIT FOR DATABASE =====
+echo "⏳ Waiting for PostgreSQL..."
+MAX_ATTEMPTS=60
+ATTEMPT=0
+
+while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+    ATTEMPT=$((ATTEMPT+1))
+    
+    if $WAIT_CMD 2>/dev/null; then
+        echo "✅ PostgreSQL ready!"
+        break
+    fi
+    
+    [ $ATTEMPT -eq 1 ] && echo "Connecting to database..."
+    sleep 2
+    
+    if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+        echo "❌ Could not connect to PostgreSQL"
+        echo "Connection: $DB_HOST:$DB_PORT/$DB_NAME (user: $DB_USER)"
+        exit 1
+    fi
+done
+
+# ===== CHECK DATABASE =====
+echo "🔍 Checking database..."
+DB_EXISTS=$($PSQL_CONNECT -t -c "SELECT 1 FROM pg_database WHERE datname='$DB_NAME';" 2>/dev/null | xargs || echo "")
+
+if [ "$DB_EXISTS" != "1" ]; then
+    echo "🆕 Creating database..."
+    $PSQL_CONNECT -c "CREATE DATABASE \"$DB_NAME\";" || exit 1
+    echo "✅ Database created"
+    DB_IS_NEW=true
+else
+    echo "✅ Database exists"
+    DB_IS_NEW=false
+fi
+
+# ===== PRISMA SETUP =====
+echo "📋 Generating Prisma client..."
+npx prisma generate || exit 1
+
+# ===== CHECK TABLES =====
+echo "🔍 Checking database state..."
+TABLE_COUNT=$($PSQL_DB -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';" 2>/dev/null | xargs || echo "0")
+
+echo "📊 Found $TABLE_COUNT tables"
+
+if [ "$TABLE_COUNT" -eq "0" ]; then
+    echo "🆕 Empty database - initializing..."
+    
+    # Push schema
+    echo "📊 Pushing schema..."
+    npx prisma db push --accept-data-loss || exit 1
+    
+    # Seed data
+    echo "🌱 Seeding data..."
+    npm run db:seed || echo "⚠️ Seed failed (continuing)"
+    
+    echo "✅ Database initialized"
+else
+    echo "📊 Database has data - migrating..."
+    
+    # Deploy migrations
+    echo "🔄 Deploying migrations..."
+    npx prisma migrate deploy || {
+        echo "⚠️ Migration issues, resolving..."
+        npx prisma migrate resolve --applied 2>/dev/null || true
+        npx prisma migrate deploy || echo "⚠️ Some migrations failed"
+    }
+    
+    # Check if needs seeding
+    echo "🔍 Checking seed data..."
+    USER_COUNT=$($PSQL_DB -t -c "SELECT COUNT(*) FROM \"User\" WHERE email='admin@docuflow.com';" 2>/dev/null | xargs || echo "0")
+    
+    if [ "$USER_COUNT" -eq "0" ]; then
+        echo "🌱 Seeding data..."
+        npm run db:seed || echo "⚠️ Seed failed"
+    else
+        echo "✅ Already seeded"
+    fi
+    
+    echo "✅ Migration complete"
+fi
+
+# ===== START APP =====
+echo ""
+echo "🚀 Starting application..."
+echo "Environment: ${NODE_ENV:-development}"
+echo "======================================"
+
+if [ "$NODE_ENV" = "production" ]; then
+    exec node dist/main
+else
+    exec npm run start:dev
+fi
