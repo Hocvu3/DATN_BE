@@ -143,12 +143,12 @@ jobs:
       - name: 🏥 Health Check
         run: |
           echo "⏳ Waiting for application to start..."
-          sleep 15
+          sleep 30
           
           HEALTH_URL="https://api.docuflow.id.vn/api/health"
           
-          for i in {1..10}; do
-            echo "🔍 Health check attempt $i/10..."
+          for i in {1..20}; do
+            echo "🔍 Health check attempt $i/20..."
             
             STATUS_CODE=$(curl -k -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
             
