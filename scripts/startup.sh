@@ -22,8 +22,8 @@ if [ -n "$DATABASE_URL" ] && echo "$DATABASE_URL" | grep -q "postgres"; then
     echo "Parsed: User=$DB_USER, Host=$DB_HOST, Port=$DB_PORT, DB=$DB_NAME"
     
     WAIT_CMD="pg_isready -h $DB_HOST -p $DB_PORT -U $DB_USER"
-    PSQL_CONNECT="PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d postgres"
-    PSQL_DB="PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME"
+    PSQL_CONNECT="PGPASSWORD=\"$DB_PASSWORD\" psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d postgres"
+    PSQL_DB="PGPASSWORD=\"$DB_PASSWORD\" psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME"
 else
     echo "💻 Local environment detected"
     DB_HOST="${DB_HOST:-localhost}"
@@ -33,8 +33,8 @@ else
     DB_NAME="${DB_NAME:-datn}"
     
     WAIT_CMD="pg_isready -h $DB_HOST -p $DB_PORT -U $DB_USER"
-    PSQL_CONNECT="PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER"
-    PSQL_DB="PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME"
+    PSQL_CONNECT="PGPASSWORD=\"$DB_PASSWORD\" psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d postgres"
+    PSQL_DB="PGPASSWORD=\"$DB_PASSWORD\" psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME"
 fi
 
 echo "📊 Database: $DB_NAME @ $DB_HOST:$DB_PORT"
