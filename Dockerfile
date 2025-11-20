@@ -3,8 +3,9 @@
 # Build stage
 FROM node:18-alpine AS builder
 
-# Update packages for security
-RUN apk update && apk upgrade
+# Install build dependencies for native modules (bcrypt, etc.)
+RUN apk update && apk upgrade && \
+    apk add --no-cache python3 make g++
 
 # Set working directory
 WORKDIR /app
@@ -25,8 +26,8 @@ RUN npx prisma generate
 # Build application
 RUN npm run build
 
-# Remove dev dependencies and rebuild native modules for production
-RUN npm prune --production && npm rebuild bcrypt --build-from-source
+# Remove dev dependencies (native modules already built)
+RUN npm prune --production
 
 # Production stage
 FROM node:18-alpine AS production
