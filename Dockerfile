@@ -13,11 +13,8 @@ WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Disable husky during Docker build
-ENV HUSKY=0
-
-# Install dependencies (now includes build tools in production deps)
-RUN npm ci --only=production
+# Install dependencies (ignore scripts like husky prepare)
+RUN npm ci --only=production --ignore-scripts
 
 # Copy source code
 COPY . .
