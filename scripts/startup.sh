@@ -18,9 +18,12 @@ if [ -n "$DATABASE_URL" ] && echo "$DATABASE_URL" | grep -q "postgres:"; then
     DB_PORT=$(echo $DATABASE_URL | sed -n 's/.*postgres:\/\/[^:]*:[^@]*@[^:]*:\([^\/]*\).*/\1/p')
     DB_NAME=$(echo $DATABASE_URL | sed -n 's/.*postgres:\/\/[^:]*:[^@]*@[^:]*:[^\/]*\/\([^?]*\).*/\1/p')
     
+    # Debug: show parsed values
+    echo "Parsed: User=$DB_USER, Host=$DB_HOST, Port=$DB_PORT, DB=$DB_NAME"
+    
     WAIT_CMD="pg_isready -h $DB_HOST -p $DB_PORT -U $DB_USER"
-    PSQL_CONNECT="psql postgres://$DB_USER:$DB_PASSWORD@$DB_HOST:$DB_PORT/postgres"
-    PSQL_DB="psql postgres://$DB_USER:$DB_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME"
+    PSQL_CONNECT="psql \"postgresql://$DB_USER:$DB_PASSWORD@$DB_HOST:$DB_PORT/postgres\""
+    PSQL_DB="psql \"postgresql://$DB_USER:$DB_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME\""
 else
     echo "💻 Local environment detected"
     DB_HOST="${DB_HOST:-localhost}"
