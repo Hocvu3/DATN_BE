@@ -30,7 +30,8 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
       return {
         id: user.id,
         email: user.email,
-        role: user.role?.name || 'USER',
+        role: user.role?.name || 'EMPLOYEE',
+        departmentId: user.departmentId || null,
       };
     } catch (error) {
       // Let HttpExceptionFilter handle the formatting of the error response

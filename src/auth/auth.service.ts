@@ -65,23 +65,25 @@ export class AuthService {
   }
 
   private signAccessToken(
-    user: Pick<UserEntity, 'id' | 'email'> & { role?: { name?: string } | string | null },
+    user: Pick<UserEntity, 'id' | 'email' | 'departmentId'> & { role?: { name?: string } | string | null },
   ): string {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
       role: typeof user.role === 'string' ? user.role : user.role?.name || 'USER',
+      departmentId: user.departmentId,
     };
     return this.jwtService.sign(payload);
   }
 
   private signRefreshToken(
-    user: Pick<UserEntity, 'id' | 'email'> & { role?: { name?: string } | string | null },
+    user: Pick<UserEntity, 'id' | 'email' | 'departmentId'> & { role?: { name?: string } | string | null },
   ): string {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
       role: typeof user.role === 'string' ? user.role : user.role?.name || 'USER',
+      departmentId: user.departmentId,
     };
     return this.jwtService.sign(payload, {
       secret: this.refreshSecret,
@@ -110,7 +112,12 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      user: { id: dbUser.id, email: dbUser.email, role: dbUser.role?.name || 'USER' },
+      user: { 
+        id: dbUser.id, 
+        email: dbUser.email, 
+        role: dbUser.role?.name || 'EMPLOYEE',
+        departmentId: dbUser.departmentId 
+      },
     };
   }
 
