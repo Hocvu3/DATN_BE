@@ -93,7 +93,8 @@ export class AuthController {
       const authUser: AuthenticatedUser = {
         id: dbUser.id,
         email: dbUser.email,
-        role: typeof dbUser.role === 'string' ? dbUser.role : dbUser.role?.name || 'USER',
+        role: typeof dbUser.role === 'string' ? dbUser.role : dbUser.role?.name || 'EMPLOYEE',
+        departmentId: dbUser.departmentId
       };
 
       const tokens = await this.authService.login(authUser);
