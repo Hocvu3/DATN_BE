@@ -91,5 +91,13 @@ CREATE POLICY "documents_delete_policy" ON documents
     get_current_user_role() = 'ADMIN'
   );
 
--- ===== COMPLETION MESSAGE =====
-SELECT '✅ RLS enabled for users and documents tables' as status;
+  -- ===== LOGGING MESSAGE FOR DOCKER CONTAINER =====
+  DO $$
+  BEGIN
+    RAISE NOTICE '✅ RLS enabled for users and documents tables';
+  END;
+  $$;
+
+  -- ===== COMPLETION MESSAGE =====
+  SELECT '✅ RLS enabled for users and documents tables' as status;
+
