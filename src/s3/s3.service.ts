@@ -22,9 +22,20 @@ export class S3Service {
     const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID');
     const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY');
     this.region = this.configService.get<string>('AWS_REGION', 'us-east-1');
+    
+    // Only throw error if not in development mode
     if (!accessKeyId || !secretAccessKey) {
-      throw new Error('AWS credentials are not set in environment variables');
+      const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
+      if (nodeEnv === 'production') {
+        throw new Error('AWS credentials are not set in environment variables');
+      }
+      this.logger.warn('⚠️ AWS credentials not set - S3 features will be disabled');
+      // Use dummy credentials for dev
+      this.s3Client = null as any;
+      this.bucketName = 'dev-bucket';
+      return;
     }
+    
     this.s3Client = new S3Client({
       region: this.region,
       credentials: {
@@ -44,6 +55,10 @@ export class S3Service {
     contentType: string,
     folder: string = 'uploads',
   ): Promise<{ presignedUrl: string; key: string; publicUrl: string }> {
+    if (!this.s3Client) {
+      throw new Error('S3 is not configured - AWS credentials missing');
+    }
+    
     const fileExtension = fileName.split('.').pop();
     const { v4: uuidv4 } = await import('uuid');
     const key = `${folder}/${uuidv4()}.${fileExtension}`;
