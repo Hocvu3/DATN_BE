@@ -34,9 +34,9 @@ RUN npm prune --production && \
 # Production stage
 FROM node:18-alpine AS production
 
-# Install PostgreSQL client, bash, update packages, and create app user for security
+# Install PostgreSQL client, bash, build tools for bcrypt, update packages, and create app user for security
 RUN apk update && apk upgrade && \
-    apk add --no-cache postgresql-client bash && \
+    apk add --no-cache postgresql-client bash python3 make g++ && \
     addgroup -g 1001 -S nodejs && \
     adduser -S nestjs -u 1001
 
@@ -53,6 +53,9 @@ COPY --from=builder --chown=nestjs:nodejs /app/scripts ./scripts
 COPY --from=builder --chown=nestjs:nodejs /app/public ./public
 COPY --from=builder --chown=nestjs:nodejs /app/healthcheck.js ./healthcheck.js
 COPY --from=builder --chown=nestjs:nodejs /app/tsconfig.json ./tsconfig.json
+
+# Rebuild bcrypt for Alpine (fix segfault issue)
+RUN npm rebuild bcrypt --build-from-source
 
 # Create necessary directories and set ownership
 RUN mkdir -p /app/uploads /app/temp /app/logs && \
