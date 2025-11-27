@@ -1,7 +1,5 @@
 -- ===== SECURE DOCUMENT MANAGEMENT SYSTEM - SIMPLIFIED RLS SETUP =====
-
--- Connect to the database
-\c secure_document_management;
+-- This script only applies RLS policies, tables are created by Prisma
 
 -- ===== SECURITY FUNCTIONS =====
 
@@ -30,10 +28,35 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ===== RLS POLICIES =====
+-- Tables must exist before running this script (created by Prisma)
 
--- Enable RLS only on users and documents tables only
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+-- Drop existing policies if they exist
+DO $$ 
+BEGIN
+    DROP POLICY IF EXISTS users_select_policy ON users;
+    DROP POLICY IF EXISTS users_update_policy ON users;
+    DROP POLICY IF EXISTS users_delete_policy ON users;
+    DROP POLICY IF EXISTS documents_select_policy ON documents;
+    DROP POLICY IF EXISTS documents_insert_policy ON documents;
+    DROP POLICY IF EXISTS documents_update_policy ON documents;
+    DROP POLICY IF EXISTS documents_delete_policy ON documents;
+EXCEPTION
+    WHEN undefined_table THEN 
+        RAISE NOTICE 'Tables do not exist yet, skipping policy drops';
+    WHEN undefined_object THEN 
+        RAISE NOTICE 'Policies do not exist, skipping drops';
+END $$;
+
+-- Enable RLS only on users and documents tables
+DO $$
+BEGIN
+    ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+    RAISE NOTICE '✅ RLS enabled on users and documents tables';
+EXCEPTION
+    WHEN undefined_table THEN
+        RAISE EXCEPTION 'Tables do not exist! Run Prisma migrate/push first.';
+END $$;
 
 -- Users table policies
 CREATE POLICY "users_select_policy" ON users
@@ -91,13 +114,11 @@ CREATE POLICY "documents_delete_policy" ON documents
     get_current_user_role() = 'ADMIN'
   );
 
-  -- ===== LOGGING MESSAGE FOR DOCKER CONTAINER =====
-  DO $$
-  BEGIN
-    RAISE NOTICE '✅ RLS enabled for users and documents tables';
-  END;
-  $$;
+-- ===== COMPLETION =====
+DO $$
+BEGIN
+  RAISE NOTICE '✅ RLS policies applied successfully';
+END $$;
 
-  -- ===== COMPLETION MESSAGE =====
-  SELECT '✅ RLS enabled for users and documents tables' as status;
+SELECT '✅ RLS enabled for users and documents tables' as status;
 

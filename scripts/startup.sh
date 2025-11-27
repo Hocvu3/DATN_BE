@@ -89,9 +89,19 @@ echo "📊 Found $TABLE_COUNT tables"
 if [ "$TABLE_COUNT" -eq "0" ]; then
     echo "🆕 Empty database - initializing..."
     
-    # Push schema
+    # Push schema (creates tables based on Prisma schema)
     echo "📊 Pushing schema..."
     npx prisma db push --accept-data-loss || exit 1
+    
+    # Apply RLS policies from init.sql AFTER tables are created
+    echo "🔒 Applying RLS policies..."
+    if [ -f "./database/init.sql" ]; then
+        psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f ./database/init.sql || {
+            echo "⚠️ RLS setup failed, continuing..."
+        }
+    else
+        echo "⚠️ init.sql not found, skipping RLS setup"
+    fi
     
     # Seed data
     echo "🌱 Seeding data..."
