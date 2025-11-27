@@ -13,19 +13,20 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_INITDB_ARGS: '--encoding=UTF-8 --lc-collate=C --lc-ctype=C'
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # Comment out to force fresh DB on rebuild
+      # - postgres_data:/var/lib/postgresql/data
       - ./certs:/etc/ssl/certs
     ports:
-      - '5432:5432'
+      - '5433:5432'
     networks:
       - secure_doc_network
     restart: unless-stopped
     healthcheck:
-      # test: ['CMD-SHELL', 'pg_isready -U postgres']
-      test: ['CMD', 'pg_isready', '-h', 'postgres', '-U', 'postgres']
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: ['CMD', 'pg_isready', '-h', 'localhost', '-U', 'postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   # Application
   app:
@@ -36,7 +37,6 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://postgres:password@postgres:5432/secure_document_management?schema=public
-      REDIS_URL: redis://:redis_password@redis:6379
       PORT: 3001
       JWT_SECRET: your-super-secret-jwt-key-change-in-production
       ENCRYPTION_KEY: your-32-character-encryption-key
@@ -47,18 +47,18 @@ services:
       POSTGRES_SSL_MODE: require
       POSTGRES_SSL_CA: /etc/ssl/certs/ca-certificate.crt
       AUDIT_LOG_RETENTION_DAYS: 2555
-      AUDIT_LOG_ENCRYPTION: true
-      OCR_ENABLED: true
+      AUDIT_LOG_ENCRYPTION: "true"
+      OCR_ENABLED: "true"
       OCR_LANGUAGE: vie+eng
-      FTS_ENABLED: true
+      FTS_ENABLED: "true"
       FTS_LANGUAGE: simple
       NOTIFICATION_RETENTION_DAYS: 90
-      REAL_TIME_NOTIFICATIONS: true
-      DIGITAL_SIGNATURE_ENABLED: true
+      REAL_TIME_NOTIFICATIONS: "true"
+      DIGITAL_SIGNATURE_ENABLED: "true"
       SIGNATURE_EXPIRY_DAYS: 30
-      WATERMARK_ENABLED: true
+      WATERMARK_ENABLED: "true"
       WATERMARK_TEXT: CONFIDENTIAL
-      DLP_ENABLED: true
+      DLP_ENABLED: "true"
       DLP_PATTERNS: '["credit_card", "ssn", "email", "phone"]'
     volumes:
       - app_uploads:/app/uploads
@@ -71,8 +71,6 @@ services:
       - secure_doc_network
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:

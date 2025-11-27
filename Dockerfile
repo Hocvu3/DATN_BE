@@ -1,4 +1,4 @@
-# ===== SECURE DOCUMENT MANAGEMENT SYSTEM - DOCKERFILE =====
+# ===== SECURE DOCUMENT MANAGEMENT SYSTEM - DOCKERFILE ====
 
 # Build stage
 FROM node:18-alpine AS builder
@@ -26,8 +26,10 @@ RUN npx prisma generate
 # Build application
 RUN npm run build
 
-# Remove dev dependencies (native modules already built)
-RUN npm prune --production
+# Keep typescript and types for seed script (ts-node requirement)
+# Remove only heavy dev dependencies
+RUN npm prune --production && \
+    npm install --no-save typescript ts-node @types/node @types/bcrypt
 
 # Production stage
 FROM node:18-alpine AS production
@@ -50,6 +52,7 @@ COPY --from=builder --chown=nestjs:nodejs /app/database ./database
 COPY --from=builder --chown=nestjs:nodejs /app/scripts ./scripts
 COPY --from=builder --chown=nestjs:nodejs /app/public ./public
 COPY --from=builder --chown=nestjs:nodejs /app/healthcheck.js ./healthcheck.js
+COPY --from=builder --chown=nestjs:nodejs /app/tsconfig.json ./tsconfig.json
 
 # Create necessary directories and set ownership
 RUN mkdir -p /app/uploads /app/temp /app/logs && \
