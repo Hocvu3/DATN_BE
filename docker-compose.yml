@@ -94,7 +94,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  volumes:
+volumes:
   postgres_data:
     driver: local
   app_uploads:
