@@ -135,9 +135,9 @@ async function main(): Promise<void> {
     where: { email: 'hocvt2@vmogroup.com' },
     update: {},
     create: {
-      id: 'user-admin',
+      id: 'user-almighty',
       email: 'hocvt2@vmogroup.com',
-      username: 'admin',
+      username: 'almighty',
       passwordHash: almightyPassword,
       firstName: 'Admin',
       lastName: 'Master',
