@@ -13,8 +13,9 @@ services:
     ports:
       - '5432:5432'
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      # - postgres_data:/var/lib/postgresql/data
+      # - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./certs:/etc/ssl/certs
     networks:
       - secure_doc_network
     restart: unless-stopped
@@ -89,10 +90,10 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ['CMD', 'node', 'healthcheck.js']
-      interval: 20s
+      interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 15s
+      retries: 10
+      start_period: 300s
 
 volumes:
   postgres_data:
