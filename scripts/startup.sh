@@ -119,9 +119,9 @@ else
         npx prisma migrate deploy || echo "⚠️ Some migrations failed"
     }
     
-    # Check if needs seeding
+    # Check if needs seeding (check for any user in users table)
     echo "🔍 Checking seed data..."
-    USER_COUNT=$(psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -t -c "SELECT COUNT(*) FROM \"User\" WHERE email='admin@docuflow.com';" 2>/dev/null | xargs || echo "0")
+    USER_COUNT=$(psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -t -c "SELECT COUNT(*) FROM users LIMIT 1;" 2>/dev/null | xargs || echo "0")
     USER_COUNT=${USER_COUNT:-0}
     
     if [ "$USER_COUNT" -eq "0" ]; then

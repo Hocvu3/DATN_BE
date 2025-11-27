@@ -37,15 +37,35 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://postgres:password@postgres:5432/secure_document_management?schema=public
-      PORT: 3001
+      DATABASE_CONNECTION_LIMIT: 10
+      DATABASE_CONNECTION_TIMEOUT: 30000
+      PORT: 3000
+      
+      # Gmail configuration (use dummy values for local dev)
+      GMAIL_USER: test@example.com
+      GMAIL_APP_PASSWORD: dummy_password
+      GOOGLE_CLIENT_ID: dummy_client_id
+      GOOGLE_CLIENT_SECRET: dummy_client_secret
+      GOOGLE_REDIRECT_URI: http://localhost:3000/auth/google/callback
+
+      # Security Configuration
       JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      JWT_ACCESS_EXPIRES: 15m
+      JWT_REFRESH_SECRET: your-super-secret-refresh-key-change-in-production
+      JWT_REFRESH_EXPIRES: 7d
       ENCRYPTION_KEY: your-32-character-encryption-key
       BCRYPT_ROUNDS: 12
+
+      # File Upload Configuration (use dummy AWS credentials)
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: dummy_access_key
+      AWS_SECRET_ACCESS_KEY: dummy_secret_key
+      AWS_S3_BUCKET_NAME: dev-bucket
+      
+      # Other configurations
       MAX_FILE_SIZE: 10485760
       UPLOAD_PATH: /app/uploads
       TEMP_PATH: /app/temp
-      POSTGRES_SSL_MODE: require
-      POSTGRES_SSL_CA: /etc/ssl/certs/ca-certificate.crt
       AUDIT_LOG_RETENTION_DAYS: 2555
       AUDIT_LOG_ENCRYPTION: "true"
       OCR_ENABLED: "true"
