@@ -2,6 +2,7 @@ import { Injectable, ExecutionContext } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { HealthCheckLogger } from 'src/common/utils/health-check-logger';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -19,7 +20,12 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     const controller = context.getClass().name;
 
     if (isPublic) {
-      console.log(`🟢 PUBLIC route: ${controller}.${handler}`);
+      // Skip logging for health check to reduce noise
+      if (controller === 'HealthController' && handler === 'check') {
+        HealthCheckLogger.logHealthCheck();
+      } else {
+        console.log(`🟢 PUBLIC route: ${controller}.${handler}`);
+      }
       return true;
     }
 

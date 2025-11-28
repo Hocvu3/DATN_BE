@@ -18,8 +18,7 @@ export class HealthController implements OnModuleInit {
   @ApiOperation({ summary: 'Health check endpoint' })
   @ApiResponse({ status: 200, description: 'Application is healthy' })
   check() {
-    HealthCheckLogger.logHealthCheck();
-    
+    // JWT Guard handles the throttled logging
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),
