@@ -329,16 +329,16 @@ DECLARE
         'digital_signatures',
         'assets'
     ];
-    table_name TEXT;
+    tbl_name TEXT;
 BEGIN
     -- Create triggers for each specified table
-    FOREACH table_name IN ARRAY tables_to_audit
+    FOREACH tbl_name IN ARRAY tables_to_audit
     LOOP
         -- Check if table exists before creating triggers
-        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE information_schema.tables.table_name = table_name AND table_schema = 'public') THEN
-            PERFORM create_audit_triggers_for_table(table_name);
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = tbl_name AND table_schema = 'public') THEN
+            PERFORM create_audit_triggers_for_table(tbl_name);
         ELSE
-            RAISE NOTICE 'Table % does not exist, skipping trigger creation', table_name;
+            RAISE NOTICE 'Table % does not exist, skipping trigger creation', tbl_name;
         END IF;
     END LOOP;
     
