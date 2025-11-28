@@ -10,13 +10,13 @@ export class HealthCheckLogger {
     
     // Only log once every 6 hours
     if (now - this.lastLogTime >= this.LOG_INTERVAL) {
-      this.logger.log('🟢 Health check endpoint accessed');
+      this.logger.log('🟢 PUBLIC route: HealthController.check (throttled - only logs every 6h)');
       this.lastLogTime = now;
     }
   }
 
   static logOnStartup() {
-    this.logger.log('🚀 Health check endpoint initialized');
+    this.logger.log('🚀 Health check endpoint initialized - logging throttled to every 6 hours');
     this.lastLogTime = Date.now();
   }
 }

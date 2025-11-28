@@ -145,13 +145,21 @@ CREATE POLICY "documents_insert_policy" ON documents
 CREATE POLICY "documents_update_policy" ON documents
   FOR UPDATE USING (
     creator_id = get_current_user_id() OR 
-    get_current_user_role() = 'ADMIN'
+    get_current_user_role() = 'ADMIN' OR
+    (
+      get_current_user_role() = 'MANAGER' AND 
+      department_id = get_current_user_department_id()
+    )
   );
 
 CREATE POLICY "documents_delete_policy" ON documents
   FOR DELETE USING (
     creator_id = get_current_user_id() OR 
-    get_current_user_role() = 'ADMIN'
+    get_current_user_role() = 'ADMIN' OR
+    (
+      get_current_user_role() = 'MANAGER' AND 
+      department_id = get_current_user_department_id()
+    )
   );
 
 
