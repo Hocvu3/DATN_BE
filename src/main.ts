@@ -45,7 +45,8 @@ async function bootstrap() {
   );
 
   // Enable global JWT auth guard - ensures @Public() decorator works
-  app.useGlobalGuards(new JwtAuthGuard(new Reflector()));
+  const reflector = new Reflector();
+  app.useGlobalGuards(new JwtAuthGuard(reflector));
 
   // Get services for interceptors
   const prismaService = app.get(PrismaService);
@@ -54,7 +55,7 @@ async function bootstrap() {
   // Apply global interceptors and filters
   app.useGlobalInterceptors(
     new RlsContextInterceptor(prismaService), // Set RLS context first
-    new AuditContextInterceptor(auditContextService), // Set audit context
+    new AuditContextInterceptor(auditContextService, reflector), // Set audit context
     new BigIntSerializerInterceptor(), // Run BigInt serializer
     new TransformInterceptor(),
   );

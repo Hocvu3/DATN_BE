@@ -23,6 +23,12 @@ export class RlsContextInterceptor implements NestInterceptor {
 
   async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<any>> {
     const request = context.switchToHttp().getRequest();
+    
+    // Skip RLS context for health check endpoints
+    if (request.url?.includes('/health')) {
+      return next.handle();
+    }
+    
     const user = request.user;
 
     // Only set RLS context if user is authenticated
