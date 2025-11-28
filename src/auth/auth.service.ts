@@ -99,16 +99,6 @@ export class AuthService {
     const refreshToken = this.signRefreshToken(dbUser);
     await this.usersService.setRefreshToken(dbUser.id, refreshToken);
 
-    // create audit log
-    await this.prismaService.auditLog.create({
-      data: {
-        action: 'LOGIN',
-        resource: 'User',
-        resourceId: dbUser.id,
-        userId: dbUser.id,
-      },
-    });
-
     return {
       accessToken,
       refreshToken,

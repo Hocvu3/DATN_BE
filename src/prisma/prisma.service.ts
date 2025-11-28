@@ -21,29 +21,6 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   }
 
   // Custom methods for security operations
-  async createAuditLog(data: {
-    action: string;
-    resource: string;
-    resourceId: string;
-    userId?: string;
-    documentId?: string;
-    details?: any;
-    ipAddress?: string;
-    userAgent?: string;
-  }) {
-    return this.auditLog.create({
-      data: {
-        action: data.action,
-        resource: data.resource,
-        resourceId: data.resourceId,
-        userId: data.userId,
-        documentId: data.documentId,
-        details: data.details,
-        ipAddress: data.ipAddress,
-        userAgent: data.userAgent,
-      },
-    });
-  }
 
   // Method to get user with role and department
   async getUserWithRelations(userId: string) {

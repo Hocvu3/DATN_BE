@@ -7,11 +7,13 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { BigIntSerializerInterceptor } from './common/interceptors/bigint-serializer.interceptor';
 import { RlsContextInterceptor } from './common/interceptors/rls-context.interceptor';
+import { AuditContextInterceptor } from './common/interceptors/audit-context.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import helmet from 'helmet';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { PrismaService } from './prisma/prisma.service';
+import { AuditContextService } from './prisma/audit-context.service';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -45,12 +47,14 @@ async function bootstrap() {
   // Enable global JWT auth guard - ensures @Public() decorator works
   app.useGlobalGuards(new JwtAuthGuard(new Reflector()));
 
-  // Get PrismaService instance for RLS interceptor
+  // Get services for interceptors
   const prismaService = app.get(PrismaService);
+  const auditContextService = app.get(AuditContextService);
 
   // Apply global interceptors and filters
   app.useGlobalInterceptors(
     new RlsContextInterceptor(prismaService), // Set RLS context first
+    new AuditContextInterceptor(auditContextService), // Set audit context
     new BigIntSerializerInterceptor(), // Run BigInt serializer
     new TransformInterceptor(),
   );

@@ -265,11 +265,6 @@ export class DocumentRepository {
   }
 
   // ===== AUDIT LOGS =====
-  async createAuditLog(data: Prisma.AuditLogCreateInput): Promise<void> {
-    await this.prisma.auditLog.create({
-      data,
-    });
-  }
 
   async findAuditLogsByDocumentId(documentId: string) {
     return this.prisma.auditLog.findMany({

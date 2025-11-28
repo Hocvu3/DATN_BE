@@ -105,16 +105,6 @@ export class DocumentService {
       await this.addTagsToDocument(document.id, createDocumentDto.tags);
     }
 
-    // Create audit log
-    await this.documentRepository.createAuditLog({
-      action: 'CREATE',
-      resource: 'Document',
-      resourceId: document.id,
-      user: { connect: { id: creatorId } },
-      document: { connect: { id: document.id } },
-      details: { title: document.title, documentNumber: document.documentNumber },
-    });
-
     this.logger.log(`Document created: ${document.documentNumber} by ${creatorId}`);
     return document;
   }
@@ -330,14 +320,6 @@ export class DocumentService {
     });
 
     // Create audit log
-    await this.documentRepository.createAuditLog({
-      action: 'UPDATE',
-      resource: 'Document',
-      resourceId: id,
-      user: { connect: { id: userId } },
-      document: { connect: { id: id } },
-      details: { changes: updateDocumentDto as Partial<UpdateDocumentDto> },
-    });
 
     this.logger.log(`Document updated: ${id} by ${userId}`);
 
@@ -362,14 +344,6 @@ export class DocumentService {
     await this.documentRepository.delete(id);
 
     // Create audit log
-    await this.documentRepository.createAuditLog({
-      action: 'DELETE',
-      resource: 'Document',
-      resourceId: id,
-      user: { connect: { id: userId } },
-      document: { connect: { id: id } },
-      details: { title: document.title, documentNumber: document.documentNumber },
-    });
 
     this.logger.log(`Document deleted: ${id} by ${userId}`);
   }
@@ -416,14 +390,6 @@ export class DocumentService {
     });
 
     // Create audit log
-    await this.documentRepository.createAuditLog({
-      action: 'CREATE_VERSION',
-      resource: 'DocumentVersion',
-      resourceId: version.id,
-      user: { connect: { id: userId } },
-      document: { connect: { id: documentId } },
-      details: { versionNumber: version.versionNumber, filePath: version.filePath },
-    });
 
     this.logger.log(`Document version created: ${version.id} for document ${documentId}`);
     return version;
@@ -511,18 +477,6 @@ export class DocumentService {
     await this.documentRepository.deleteVersion(version.id);
 
     // Create audit log
-    await this.documentRepository.createAuditLog({
-      action: 'DELETE_VERSION',
-      resource: 'DocumentVersion',
-      resourceId: version.id,
-      user: { connect: { id: userId } },
-      document: { connect: { id: documentId } },
-      details: {
-        versionNumber: version.versionNumber,
-        s3Key: version.s3Key,
-        filename: version.filePath,
-      },
-    });
 
     this.logger.log(
       `Document version deleted: ${version.id} (v${versionNumber}) for document ${documentId}`,
@@ -548,14 +502,6 @@ export class DocumentService {
     });
 
     // Create audit log
-    await this.documentRepository.createAuditLog({
-      action: 'CREATE_COMMENT',
-      resource: 'Comment',
-      resourceId: comment.id,
-      user: { connect: { id: userId } },
-      document: { connect: { id: documentId } },
-      details: { isInternal: comment.isInternal },
-    });
 
     this.logger.log(`Comment created: ${comment.id} for document ${documentId}`);
     return comment;
@@ -694,18 +640,6 @@ export class DocumentService {
     });
 
     // Create audit log
-    await this.documentRepository.createAuditLog({
-      action: 'UPLOAD_ASSET',
-      resource: 'Asset',
-      resourceId: asset.id,
-      user: { connect: { id: userId } },
-      document: { connect: { id: documentId } },
-      details: {
-        filename: asset.filename,
-        s3Key: assetData.s3Key,
-        contentType: asset.contentType,
-      },
-    });
 
     this.logger.log(`Asset linked to document: ${asset.id} for document ${documentId}`);
     return asset;
@@ -764,18 +698,6 @@ export class DocumentService {
     await this.documentRepository.deleteAsset(assetId);
 
     // Create audit log
-    await this.documentRepository.createAuditLog({
-      action: 'DELETE_ASSET',
-      resource: 'Asset',
-      resourceId: assetId,
-      user: { connect: { id: userId } },
-      document: { connect: { id: documentId } },
-      details: {
-        filename: asset.filename,
-        s3Url: asset.s3Url,
-        s3Key: s3Key,
-      },
-    });
 
     this.logger.log(`Document asset deleted: ${assetId} for document ${documentId}`);
   }
@@ -834,19 +756,6 @@ export class DocumentService {
     });
 
     // Create audit log
-    await this.documentRepository.createAuditLog({
-      action: assetData.isCover ? 'UPLOAD_COVER' : 'UPLOAD_ASSET',
-      resource: 'Asset',
-      resourceId: asset.id,
-      user: { connect: { id: userId } },
-      document: { connect: { id: documentId } },
-      details: {
-        filename: asset.filename,
-        s3Key: assetData.s3Key,
-        contentType: asset.contentType,
-        isCover: asset.isCover,
-      },
-    });
 
     this.logger.log(
       `${assetData.isCover ? 'Cover image' : 'Asset'} linked to document: ${asset.id} for document ${documentId}`,
