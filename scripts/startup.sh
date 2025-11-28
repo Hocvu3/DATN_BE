@@ -123,10 +123,13 @@ if [ "$TABLE_COUNT" -eq "0" ]; then
         PGOPTIONS="-c app.role_password=$APP_ROLE_PASSWORD" \
             psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME \
             -f ./database/init.sql || {
-            echo "⚠️ RLS setup failed, continuing..."
+            echo "❌ RLS setup failed - this is required for app startup"
+            exit 1
         }
+        echo "✅ RLS and app_role setup completed"
     else
-        echo "⚠️ init.sql not found, skipping RLS setup"
+        echo "❌ init.sql not found, this is required for app startup"
+        exit 1
     fi
     
     # Seed data using ADMIN connection
@@ -136,6 +139,34 @@ if [ "$TABLE_COUNT" -eq "0" ]; then
     echo "✅ Database initialized"
 else
     echo "📊 Database has data - migrating..."
+    
+    # Check if app_role exists
+    echo "🔍 Checking if app_role exists..."
+    ROLE_EXISTS=$(psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -t -c "SELECT 1 FROM pg_roles WHERE rolname='app_role';" 2>/dev/null | xargs || echo "")
+    
+    if [ "$ROLE_EXISTS" != "1" ]; then
+        echo "🔧 app_role missing - applying database security setup..."
+        if [ -f "./database/init.sql" ]; then
+            # Extract app_role password from DATABASE_URL
+            if [ -z "$APP_ROLE_PASSWORD" ]; then
+                APP_ROLE_PASSWORD=$(echo "$DATABASE_URL" | sed -E 's|.*://[^:]+:([^@]+)@.*|\1|')
+            fi
+            echo "📝 Setting app_role password from environment..."
+            # Use PGOPTIONS to set session variable before running SQL
+            PGOPTIONS="-c app.role_password=$APP_ROLE_PASSWORD" \
+                psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME \
+                -f ./database/init.sql || {
+                echo "❌ Security setup failed - this is required for app startup"
+                exit 1
+            }
+            echo "✅ Database security setup completed"
+        else
+            echo "❌ init.sql not found, this is required for app startup"
+            exit 1
+        fi
+    else
+        echo "✅ app_role exists"
+    fi
     
     # Deploy migrations using ADMIN connection
     echo "🔄 Deploying migrations with admin connection..."
