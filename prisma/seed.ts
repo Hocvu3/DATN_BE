@@ -410,6 +410,7 @@ async function main(): Promise<void> {
         status: 'APPROVED',
         securityLevel: 'CONFIDENTIAL',
         isConfidential: true,
+        departmentId: itDept.id, // IT Department - 2 documents
         creatorId: adminUser.id,
         approverId: hrManager.id,
         tags: {
@@ -428,6 +429,7 @@ async function main(): Promise<void> {
         status: 'APPROVED',
         securityLevel: 'INTERNAL',
         isConfidential: false,
+        departmentId: hrDept.id, // HR Department - 1 document
         creatorId: hrManager.id,
         approverId: adminUser.id,
         tags: {
@@ -446,6 +448,7 @@ async function main(): Promise<void> {
         status: 'PENDING_APPROVAL',
         securityLevel: 'SECRET',
         isConfidential: true,
+        departmentId: financeDept.id, // Finance Department - 1 document
         creatorId: financeEmp1.id,
         tags: {
           create: [
@@ -463,6 +466,7 @@ async function main(): Promise<void> {
         status: 'DRAFT',
         securityLevel: 'INTERNAL',
         isConfidential: false,
+        departmentId: itDept.id, // IT Department - 2 documents
         creatorId: itEmp1.id,
         tags: {
           create: [
@@ -480,6 +484,7 @@ async function main(): Promise<void> {
         status: 'APPROVED',
         securityLevel: 'CONFIDENTIAL',
         isConfidential: true,
+        departmentId: financeDept.id, // Finance Department - 2 documents (split with Financial Report)
         creatorId: salesManager.id,
         approverId: adminUser.id,
         tags: {
