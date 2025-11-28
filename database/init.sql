@@ -335,7 +335,7 @@ BEGIN
     FOREACH table_name IN ARRAY tables_to_audit
     LOOP
         -- Check if table exists before creating triggers
-        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = table_name AND table_schema = 'public') THEN
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE information_schema.tables.table_name = table_name AND table_schema = 'public') THEN
             PERFORM create_audit_triggers_for_table(table_name);
         ELSE
             RAISE NOTICE 'Table % does not exist, skipping trigger creation', table_name;
