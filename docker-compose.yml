@@ -10,7 +10,7 @@ services:
     environment:
       POSTGRES_DB: secure_document_management
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_INITDB_ARGS: '--encoding=UTF-8 --lc-collate=C --lc-ctype=C'
     volumes:
       # Comment out to force fresh DB on rebuild
@@ -36,7 +36,11 @@ services:
     container_name: secure_doc_app
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://postgres:password@postgres:5432/secure_document_management?schema=public
+      # Admin connection for migrations/seeds
+      DATABASE_ADMIN_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/secure_document_management?schema=public
+      # Application connection (app_role) - respects RLS
+      APP_ROLE_PASSWORD: ${APP_ROLE_PASSWORD}
+      DATABASE_URL: postgresql://app_role:${APP_ROLE_PASSWORD}@postgres:5432/secure_document_management?schema=public
       DATABASE_CONNECTION_LIMIT: 10
       DATABASE_CONNECTION_TIMEOUT: 30000
       PORT: 3000
