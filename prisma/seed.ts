@@ -1,10 +1,19 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
-const prisma = new PrismaClient();
+// Use admin connection for seeding (DATABASE_ADMIN_URL if available, otherwise DATABASE_URL)
+const databaseUrl = process.env.DATABASE_ADMIN_URL || process.env.DATABASE_URL;
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: databaseUrl,
+    },
+  },
+});
 
 async function main(): Promise<void> {
   console.log('🌱 Starting database seeding...');
+  console.log(`📊 Using connection: ${databaseUrl?.split('@')[1] || 'default'}`);  // Log host without password
 
   // Create roles (matching init.sql)
   console.log('📝 Creating roles...');

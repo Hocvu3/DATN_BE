@@ -8,21 +8,40 @@ set -e  # Exit on error
 echo "🚀 Starting Secure Document Management System..."
 
 # ===== ENVIRONMENT DETECTION =====
-if [ -n "$DATABASE_URL" ] && echo "$DATABASE_URL" | grep -q "postgres"; then
-    echo "🐳 Docker environment detected"
+# Parse DATABASE_ADMIN_URL for admin operations (migrations, seeds, RLS setup)
+if [ -n "$DATABASE_ADMIN_URL" ]; then
+    echo "🔧 Using DATABASE_ADMIN_URL for admin operations"
     
-    # Parse DATABASE_URL - simplified regex
+    # Parse DATABASE_ADMIN_URL
+    ADMIN_DB_USER=$(echo "$DATABASE_ADMIN_URL" | sed -E 's|.*://([^:]+):.*|\1|')
+    ADMIN_DB_PASSWORD=$(echo "$DATABASE_ADMIN_URL" | sed -E 's|.*://[^:]+:([^@]+)@.*|\1|')
+    ADMIN_DB_HOST=$(echo "$DATABASE_ADMIN_URL" | sed -E 's|.*@([^:]+):.*|\1|')
+    ADMIN_DB_PORT=$(echo "$DATABASE_ADMIN_URL" | sed -E 's|.*:([0-9]+)/.*|\1|')
+    ADMIN_DB_NAME=$(echo "$DATABASE_ADMIN_URL" | sed -E 's|.*/([^?]+)(\?.*)?$|\1|')
+    
+    echo "Parsed Admin: User=$ADMIN_DB_USER, Host=$ADMIN_DB_HOST, Port=$ADMIN_DB_PORT, DB=$ADMIN_DB_NAME"
+    
+    DB_USER=$ADMIN_DB_USER
+    DB_PASSWORD=$ADMIN_DB_PASSWORD
+    DB_HOST=$ADMIN_DB_HOST
+    DB_PORT=$ADMIN_DB_PORT
+    DB_NAME=$ADMIN_DB_NAME
+    
+    WAIT_CMD="pg_isready -h $DB_HOST -p $DB_PORT -U $DB_USER"
+    export PGPASSWORD="$DB_PASSWORD"
+elif [ -n "$DATABASE_URL" ] && echo "$DATABASE_URL" | grep -q "postgres"; then
+    echo "🐳 Docker environment detected (fallback to DATABASE_URL)"
+    
+    # Parse DATABASE_URL
     DB_USER=$(echo "$DATABASE_URL" | sed -E 's|.*://([^:]+):.*|\1|')
     DB_PASSWORD=$(echo "$DATABASE_URL" | sed -E 's|.*://[^:]+:([^@]+)@.*|\1|')
     DB_HOST=$(echo "$DATABASE_URL" | sed -E 's|.*@([^:]+):.*|\1|')
     DB_PORT=$(echo "$DATABASE_URL" | sed -E 's|.*:([0-9]+)/.*|\1|')
     DB_NAME=$(echo "$DATABASE_URL" | sed -E 's|.*/([^?]+)(\?.*)?$|\1|')
     
-    # Debug: show parsed values
     echo "Parsed: User=$DB_USER, Host=$DB_HOST, Port=$DB_PORT, DB=$DB_NAME"
     
     WAIT_CMD="pg_isready -h $DB_HOST -p $DB_PORT -U $DB_USER"
-    # Export password as environment variable
     export PGPASSWORD="$DB_PASSWORD"
 else
     echo "💻 Local environment detected"
@@ -33,7 +52,6 @@ else
     DB_NAME="${DB_NAME:-datn}"
     
     WAIT_CMD="pg_isready -h $DB_HOST -p $DB_PORT -U $DB_USER"
-    # Export password as environment variable
     export PGPASSWORD="$DB_PASSWORD"
 fi
 
@@ -89,34 +107,42 @@ echo "📊 Found $TABLE_COUNT tables"
 if [ "$TABLE_COUNT" -eq "0" ]; then
     echo "🆕 Empty database - initializing..."
     
-    # Push schema (creates tables based on Prisma schema)
-    echo "📊 Pushing schema..."
-    npx prisma db push --accept-data-loss || exit 1
+    # Push schema (creates tables based on Prisma schema) using ADMIN connection
+    echo "📊 Pushing schema with admin connection..."
+    DATABASE_URL="$DATABASE_ADMIN_URL" npx prisma db push --accept-data-loss || exit 1
     
-    # Apply RLS policies from init.sql AFTER tables are created
-    echo "🔒 Applying RLS policies..."
+    # Apply RLS policies from init.sql AFTER tables are created (creates app_role too)
+    echo "🔒 Applying RLS policies and creating app_role..."
     if [ -f "./database/init.sql" ]; then
-        psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f ./database/init.sql || {
+        # Extract app_role password from DATABASE_URL
+        if [ -z "$APP_ROLE_PASSWORD" ]; then
+            APP_ROLE_PASSWORD=$(echo "$DATABASE_URL" | sed -E 's|.*://[^:]+:([^@]+)@.*|\1|')
+        fi
+        echo "📝 Setting app_role password from environment..."
+        # Use PGOPTIONS to set session variable before running SQL
+        PGOPTIONS="-c app.role_password=$APP_ROLE_PASSWORD" \
+            psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME \
+            -f ./database/init.sql || {
             echo "⚠️ RLS setup failed, continuing..."
         }
     else
         echo "⚠️ init.sql not found, skipping RLS setup"
     fi
     
-    # Seed data
-    echo "🌱 Seeding data..."
-    npm run db:seed || echo "⚠️ Seed failed (continuing)"
+    # Seed data using ADMIN connection
+    echo "🌱 Seeding data with admin connection..."
+    DATABASE_URL="$DATABASE_ADMIN_URL" npm run db:seed || echo "⚠️ Seed failed (continuing)"
     
     echo "✅ Database initialized"
 else
     echo "📊 Database has data - migrating..."
     
-    # Deploy migrations
-    echo "🔄 Deploying migrations..."
-    npx prisma migrate deploy || {
+    # Deploy migrations using ADMIN connection
+    echo "🔄 Deploying migrations with admin connection..."
+    DATABASE_URL="$DATABASE_ADMIN_URL" npx prisma migrate deploy || {
         echo "⚠️ Migration issues, resolving..."
-        npx prisma migrate resolve --applied 2>/dev/null || true
-        npx prisma migrate deploy || echo "⚠️ Some migrations failed"
+        DATABASE_URL="$DATABASE_ADMIN_URL" npx prisma migrate resolve --applied 2>/dev/null || true
+        DATABASE_URL="$DATABASE_ADMIN_URL" npx prisma migrate deploy || echo "⚠️ Some migrations failed"
     }
     
     # Check if needs seeding (check for any user in users table)
@@ -125,8 +151,8 @@ else
     USER_COUNT=${USER_COUNT:-0}
     
     if [ "$USER_COUNT" -eq "0" ]; then
-        echo "🌱 Seeding data..."
-        npm run db:seed || echo "⚠️ Seed failed"
+        echo "🌱 Seeding data with admin connection..."
+        DATABASE_URL="$DATABASE_ADMIN_URL" npm run db:seed || echo "⚠️ Seed failed"
     else
         echo "✅ Already seeded"
     fi
@@ -136,8 +162,9 @@ fi
 
 # ===== START APP =====
 echo ""
-echo "🚀 Starting application..."
+echo "🚀 Starting application with app_role connection (RLS enforced)..."
 echo "Environment: ${NODE_ENV:-development}"
+echo "Database User: app_role (respects RLS policies)"
 echo "======================================"
 
 if [ "$NODE_ENV" = "production" ]; then
