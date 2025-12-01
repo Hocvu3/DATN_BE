@@ -7,6 +7,14 @@ set -e  # Exit on error
 
 echo "🚀 Starting Secure Document Management System..."
 
+# ===== LOAD ENVIRONMENT =====
+if [ -f .env ]; then
+    echo "📝 Loading .env file..."
+    set -a
+    source .env
+    set +a
+fi
+
 # ===== ENVIRONMENT DETECTION =====
 # Parse DATABASE_ADMIN_URL for admin operations (migrations, seeds, RLS setup)
 if [ -n "$DATABASE_ADMIN_URL" ]; then
