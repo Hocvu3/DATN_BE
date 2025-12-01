@@ -29,9 +29,9 @@ services:
 
   # Application
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
     image: ${IMAGE_NAME:-hocvu3/secure-document-management}:${IMAGE_TAG:-latest}
     container_name: secure_doc_app
     environment:
