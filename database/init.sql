@@ -163,9 +163,9 @@ DECLARE
     user_id_value TEXT;
     ip_address_value TEXT;
     user_agent_value TEXT;
-    old_data JSON;
-    new_data JSON;
-    changed_fields JSON;
+    old_data JSONB;
+    new_data JSONB;
+    changed_fields JSONB;
 BEGIN
     -- Get current user context
     user_id_value := NULLIF(current_setting('app.current_user_id', true), '');
