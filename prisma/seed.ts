@@ -451,6 +451,63 @@ async function main(): Promise<void> {
     }),
     prisma.document.create({
       data: {
+        title: 'Public Company Announcement',
+        description: 'Public announcement for all stakeholders',
+        documentNumber: 'PUB-2024-001',
+        status: 'APPROVED',
+        securityLevel: 'PUBLIC',
+        isConfidential: false,
+        departmentId: hrDept.id,
+        creatorId: adminUser.id,
+        approverId: hrManager.id,
+        tags: {
+          create: [
+            { tagId: tags[2].id }, // Public
+            { tagId: tags[4].id }, // Approved
+          ],
+        },
+      },
+    }),
+    prisma.document.create({
+      data: {
+        title: 'Company Newsletter',
+        description: 'Monthly company newsletter - accessible to everyone',
+        documentNumber: 'PUB-2024-002',
+        status: 'APPROVED',
+        securityLevel: 'PUBLIC',
+        isConfidential: false,
+        departmentId: hrDept.id,
+        creatorId: hrManager.id,
+        approverId: adminUser.id,
+        tags: {
+          create: [
+            { tagId: tags[2].id }, // Public
+            { tagId: tags[4].id }, // Approved
+          ],
+        },
+      },
+    }),
+    prisma.document.create({
+      data: {
+        title: 'Public Company Announcement',
+        description: 'Public announcement - accessible to everyone',
+        documentNumber: 'PUB-2024-007',
+        status: 'APPROVED',
+        securityLevel: 'PUBLIC',
+        isConfidential: false,
+        departmentId: hrDept.id,
+        creatorId: hrManager.id,
+        approverId: adminUser.id,
+        tags: {
+          create: [
+            { tagId: tags[2].id }, // Public
+            { tagId: tags[4].id }, // Approved
+          ],
+        },
+      },
+    }),
+    prisma.document.create({
+      data: {
         title: 'Financial Report Q1 2024',
         description: 'Quarterly financial performance report',
         documentNumber: 'FIN-2024-Q1',
