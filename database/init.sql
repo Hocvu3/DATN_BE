@@ -87,53 +87,42 @@ EXCEPTION
         RAISE NOTICE 'Policies do not exist, skipping drops';
 END $$;
 
--- Enable RLS only on users and documents tables
+-- Enable RLS only on documents table (NOT on users to allow login)
 DO $$
 BEGIN
-    ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+    -- Disable RLS on users table to allow login/authentication
+    ALTER TABLE users DISABLE ROW LEVEL SECURITY;
+    RAISE NOTICE '✅ RLS disabled on users table (allows login)';
+    
+    -- Enable RLS on documents table for security
     ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
-    RAISE NOTICE '✅ RLS enabled on users and documents tables';
+    RAISE NOTICE '✅ RLS enabled on documents table';
 EXCEPTION
     WHEN undefined_table THEN
         RAISE EXCEPTION 'Tables do not exist! Run Prisma migrate/push first.';
 END $$;
 
--- Users table policies
-CREATE POLICY "users_select_policy" ON users
-  FOR SELECT USING (
-    id = get_current_user_id() OR 
-    get_current_user_role() = 'ADMIN' OR
-    (get_current_user_role() = 'MANAGER' AND department_id = get_current_user_department_id())
-  );
-
-CREATE POLICY "users_update_policy" ON users
-  FOR UPDATE USING (
-    id = get_current_user_id() OR 
-    get_current_user_role() = 'ADMIN' OR
-    (get_current_user_role() = 'MANAGER' AND department_id = get_current_user_department_id())
-  );
-
-CREATE POLICY "users_delete_policy" ON users
-  FOR DELETE USING (
-    id = get_current_user_id() OR 
-    get_current_user_role() = 'ADMIN' OR
-    (get_current_user_role() = 'MANAGER' AND department_id = get_current_user_department_id())
-  );
-
--- Documents table policies
+-- Documents table policies with PUBLIC access support
+-- Allow viewing PUBLIC documents even when not logged in
 CREATE POLICY "documents_select_policy" ON documents
   FOR SELECT USING (
+    -- PUBLIC documents are accessible to everyone (even without login)
+    security_level = 'PUBLIC' OR
+    -- Admin can see everything
     get_current_user_role() = 'ADMIN' OR
+    -- Creator can always see their own documents
     creator_id = get_current_user_id() OR
+    -- Manager can see department documents based on security level
     (
       get_current_user_role() = 'MANAGER' AND 
       department_id = get_current_user_department_id() AND
-      security_level IN ('PUBLIC', 'INTERNAL', 'CONFIDENTIAL')
+      security_level IN ('INTERNAL', 'CONFIDENTIAL')
     ) OR
+    -- Employee can see INTERNAL documents in their department
     (
       get_current_user_role() = 'EMPLOYEE' AND 
       department_id = get_current_user_department_id() AND
-      security_level IN ('PUBLIC', 'INTERNAL')
+      security_level = 'INTERNAL'
     )
   );
 
@@ -433,7 +422,8 @@ DO $$
 BEGIN
   RAISE NOTICE '✅ Database security setup completed successfully!';
   RAISE NOTICE '   - Application role configured';
-  RAISE NOTICE '   - RLS policies applied';  
+  RAISE NOTICE '   - RLS disabled on users (allows login/auth)';
+  RAISE NOTICE '   - RLS enabled on documents (with PUBLIC access support)';  
   RAISE NOTICE '   - Audit triggers enabled';
 END $$;
 
