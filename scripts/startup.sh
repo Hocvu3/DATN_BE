@@ -48,14 +48,14 @@ else
     DB_HOST="${DB_HOST:-localhost}"
     DB_PORT="${DB_PORT:-5432}"
     DB_USER="${DB_USER:-postgres}"
-    DB_PASSWORD="${DB_PASSWORD:-postgres}"
-    DB_NAME="${DB_NAME:-datn}"
+    DB_PASSWORD="${DB_PASSWORD:-hocvu}"
+    DB_NAME="${DB_NAME:-secure_document_management}"
     
     WAIT_CMD="pg_isready -h $DB_HOST -p $DB_PORT -U $DB_USER"
     export PGPASSWORD="$DB_PASSWORD"
 fi
 
-echo "📊 Database: $DB_NAME @ $DB_HOST:$DB_PORT"
+echo "📊 Database: $DB_NAME @ $DB_HOST:$DB_PORT, password: ${DB_PASSWORD}"
 
 # ===== WAIT FOR DATABASE =====
 echo "⏳ Waiting for PostgreSQL..."
