@@ -39,6 +39,17 @@ export class UsersService {
         role: true,
         department: true,
         avatar: true,
+      },
+    });
+  }
+
+  async findByIdWithRelations(id: string): Promise<UserEntity | null> {
+    return this.prisma.user.findUnique({
+      where: { id },
+      include: {
+        role: true,
+        department: true,
+        avatar: true,
         createdDocuments: {
           include: {
             tags: { include: { tag: true } },
