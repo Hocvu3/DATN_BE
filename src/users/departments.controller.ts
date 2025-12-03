@@ -56,28 +56,55 @@ export class DepartmentsController {
         },
     })
     @ApiQuery({ name: 'isActive', required: false, type: Boolean, description: 'Filter by active status' })
-    async getAllDepartments(@Query('isActive') isActive?: boolean) {
-        let departments;
+    @ApiQuery({ name: 'search', required: false, type: String, description: 'Search departments by name or description' })
+    async getAllDepartments(
+        @Query('isActive') isActive?: boolean,
+        @Query('search') search?: string,
+    ) {
+        const whereClause: any = {};
 
         if (isActive !== undefined) {
             // Convert string to boolean if needed
-            const isActiveValue = typeof isActive === 'string' ? isActive === 'true' : isActive;
-
-            departments = await this.prisma.department.findMany({
-                where: { isActive: isActiveValue },
-                select: { id: true, name: true, description: true, isActive: true },
-                orderBy: { name: 'asc' },
-            });
-        } else {
-            departments = await this.prisma.department.findMany({
-                select: { id: true, name: true, description: true, isActive: true },
-                orderBy: { name: 'asc' },
-            });
+            whereClause.isActive = typeof isActive === 'string' ? isActive === 'true' : isActive;
         }
+
+        if (search) {
+            whereClause.OR = [
+                { name: { contains: search, mode: 'insensitive' } },
+                { description: { contains: search, mode: 'insensitive' } },
+            ];
+        }
+
+        const departments = await this.prisma.department.findMany({
+            where: whereClause,
+            select: { 
+                id: true, 
+                name: true, 
+                description: true, 
+                isActive: true,
+                _count: {
+                    select: {
+                        users: true,
+                        documents: true,
+                    },
+                },
+            },
+            orderBy: { name: 'asc' },
+        });
+
+        // Transform the response to flatten _count
+        const transformedDepartments = departments.map(dept => ({
+            id: dept.id,
+            name: dept.name,
+            description: dept.description,
+            isActive: dept.isActive,
+            members: dept._count.users,
+            documents: dept._count.documents,
+        }));
 
         return {
             message: 'Departments retrieved successfully',
-            departments: departments,
+            departments: transformedDepartments,
         };
     }
 
