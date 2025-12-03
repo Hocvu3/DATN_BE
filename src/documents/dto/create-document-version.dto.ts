@@ -2,7 +2,8 @@ import { IsString, IsNumber, IsBoolean, IsOptional, Min, MaxLength } from 'class
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateDocumentVersionDto {
-  @ApiProperty({ example: 1, description: 'Version number' })
+  @ApiProperty({ example: 1, description: 'Version number', required: false })
+  @IsOptional()
   @IsNumber()
   @Min(1)
   versionNumber?: number;
@@ -10,7 +11,9 @@ export class CreateDocumentVersionDto {
   @ApiProperty({
     example: 'documents/versions/2024/01/15/project-requirements-v1.pdf',
     description: 'S3 object key for the version file',
+    required: false,
   })
+  @IsOptional()
   @IsString()
   @MaxLength(500)
   s3Key?: string;
@@ -18,12 +21,15 @@ export class CreateDocumentVersionDto {
   @ApiProperty({
     example: 'https://bucket.s3.amazonaws.com/documents/versions/file.pdf',
     description: 'S3 URL for the version file',
+    required: false,
   })
+  @IsOptional()
   @IsString()
   @MaxLength(500)
   s3Url?: string;
 
-  @ApiProperty({ example: 1024000, description: 'File size in bytes' })
+  @ApiProperty({ example: 1024000, description: 'File size in bytes', required: false })
+  @IsOptional()
   @IsNumber()
   @Min(1)
   fileSize?: number;
@@ -31,12 +37,15 @@ export class CreateDocumentVersionDto {
   @ApiProperty({
     example: 'a1b2c3d4e5f6...',
     description: 'File checksum for integrity verification',
+    required: false,
   })
+  @IsOptional()
   @IsString()
   @MaxLength(128)
   checksum?: string;
 
-  @ApiProperty({ example: 'application/pdf', description: 'MIME type' })
+  @ApiProperty({ example: 'application/pdf', description: 'MIME type', required: false })
+  @IsOptional()
   @IsString()
   @MaxLength(100)
   mimeType?: string;
