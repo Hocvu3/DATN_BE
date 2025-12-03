@@ -29,7 +29,7 @@ export class UpdateUserDto {
 
   @ApiProperty({ example: 'clm123456', description: 'Department ID', required: false })
   @IsOptional()
-  @IsUUID()
+  @IsString()
   departmentId?: string;
 
   @ApiProperty({ example: true, description: 'Is user active', required: false })
