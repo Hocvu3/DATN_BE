@@ -1,17 +1,19 @@
 import type { Tag, DocumentTag, Document } from '@prisma/client';
 
 export interface TagEntity extends Tag {
-  documents: Array<{
-    id: string;
-    document: Document;
-  }>;
+  _count?: {
+    documents: number;
+  };
 }
 
 export interface DocumentTagEntity extends DocumentTag {
-  document: Document;
+  document?: Document | null;
   tag: Tag;
 }
 
 export interface TagWithDocumentCount extends Tag {
   documentCount: number;
+  _count?: {
+    documents: number;
+  };
 }

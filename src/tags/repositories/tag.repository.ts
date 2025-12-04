@@ -12,9 +12,9 @@ export class TagRepository {
     return this.prisma.tag.create({
       data,
       include: {
-        documents: {
-          include: {
-            document: true,
+        _count: {
+          select: {
+            documents: true,
           },
         },
       },
@@ -25,9 +25,9 @@ export class TagRepository {
     return this.prisma.tag.findUnique({
       where: { id },
       include: {
-        documents: {
-          include: {
-            document: true,
+        _count: {
+          select: {
+            documents: true,
           },
         },
       },
@@ -38,9 +38,9 @@ export class TagRepository {
     return this.prisma.tag.findUnique({
       where: { name },
       include: {
-        documents: {
-          include: {
-            document: true,
+        _count: {
+          select: {
+            documents: true,
           },
         },
       },
@@ -87,11 +87,6 @@ export class TagRepository {
       this.prisma.tag.findMany({
         where,
         include: {
-          documents: {
-            include: {
-              document: true,
-            },
-          },
           _count: {
             select: {
               documents: true,
@@ -119,9 +114,9 @@ export class TagRepository {
       where: { id },
       data,
       include: {
-        documents: {
-          include: {
-            document: true,
+        _count: {
+          select: {
+            documents: true,
           },
         },
       },
@@ -152,9 +147,9 @@ export class TagRepository {
       include: {
         tag: {
           include: {
-            documents: {
-              include: {
-                document: true,
+            _count: {
+              select: {
+                documents: true,
               },
             },
           },

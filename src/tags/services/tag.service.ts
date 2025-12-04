@@ -89,9 +89,10 @@ export class TagService {
     }
 
     // Check if tag is being used by any documents
-    if (tag.documents.length > 0) {
+    const documentCount = tag._count?.documents || 0;
+    if (documentCount > 0) {
       throw new ConflictException(
-        `Cannot delete tag '${tag.name}' because it is being used by ${tag.documents.length} document(s)`,
+        `Cannot delete tag '${tag.name}' because it is being used by ${documentCount} document(s)`,
       );
     }
 
