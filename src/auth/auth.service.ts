@@ -271,6 +271,8 @@ export class AuthService {
       firstName: string;
       lastName: string;
       username: string;
+      roleId?: string;
+      departmentId?: string;
       message?: string;
     },
   ): Promise<{ invitationToken: string; expiresAt: Date }> {
@@ -288,15 +290,19 @@ export class AuthService {
       data.username += '_' + '_' + Math.random().toString(36).substring(2, 8); // Append random string to username
     }
 
-    // Check if role exists
-    const role = await this.prismaService.role.findMany({
-      take: 1,
-    });
+    // Get roleId and departmentId - use provided or get default first one
+    let roleId = data.roleId;
+    let departmentId = data.departmentId;
 
-    // Check if department exists (if provided)
-    const department = await this.prismaService.department.findMany({
-      take: 1,
-    });
+    if (!roleId) {
+      const defaultRole = await this.prismaService.role.findFirst();
+      roleId = defaultRole?.id || '';
+    }
+
+    if (!departmentId) {
+      const defaultDepartment = await this.prismaService.department.findFirst();
+      departmentId = defaultDepartment?.id || '';
+    }
 
     // Generate invitation token
     const invitationToken = crypto.randomBytes(32).toString('hex');
@@ -311,8 +317,8 @@ export class AuthService {
         username: data.username,
         passwordHash: '', // Will be set when user registers
         isActive: false, // Default inactive until registration
-        roleId: role[0]?.id || '',
-        departmentId: department[0]?.id || '',
+        roleId,
+        departmentId,
         invitationToken,
         invitationExpires: expiresAt,
         invitedBy: inviterId,
