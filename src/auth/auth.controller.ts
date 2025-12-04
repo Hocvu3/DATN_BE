@@ -219,14 +219,15 @@ export class AuthController {
     }
   }
 
-  @Post('register')
-  @ApiOperation({ summary: 'Register from invitation token' })
-  @ApiOkResponse({ description: 'User registered successfully' })
+  @Public()
+  @Post('complete-registration')
+  @ApiOperation({ summary: 'Complete registration from invitation token' })
+  @ApiOkResponse({ description: 'Registration completed successfully' })
   async registerFromInvitation(@Body() registerDto: RegisterFromInvitationDto) {
     try {
       const user = await this.authService.registerFromInvitation(registerDto);
       return {
-        message: 'User registered successfully',
+        message: 'Registration completed successfully! You can now login with your credentials.',
         user: {
           id: user.id,
           email: user.email,

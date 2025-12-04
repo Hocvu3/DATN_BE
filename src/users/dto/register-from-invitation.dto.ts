@@ -11,13 +11,18 @@ export class RegisterFromInvitationDto {
   @IsNotEmpty()
   invitationToken!: string;
 
+  @ApiProperty({ example: 'John', description: 'First name' })
+  @IsString()
+  @IsNotEmpty()
+  firstName!: string;
+
+  @ApiProperty({ example: 'Doe', description: 'Last name' })
+  @IsString()
+  @IsNotEmpty()
+  lastName!: string;
+
   @ApiProperty({ example: 'securePassword123', description: 'Password', minLength: 6 })
   @IsString()
   @MinLength(6)
   password!: string;
-
-  @ApiProperty({ example: 'securePassword123', description: 'Confirm password', minLength: 6 })
-  @IsString()
-  @MinLength(6)
-  confirmPassword!: string;
 }

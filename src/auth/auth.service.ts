@@ -332,13 +332,9 @@ export class AuthService {
     email: string;
     invitationToken: string;
     password: string;
-    confirmPassword: string;
+    firstName: string;
+    lastName: string;
   }): Promise<UserEntity> {
-    // Validate passwords match
-    if (data.password !== data.confirmPassword) {
-      throw new BadRequestException('Passwords do not match');
-    }
-
     // Find user by email and invitation token
     const user = await this.prismaService.user.findFirst({
       where: {
@@ -359,6 +355,8 @@ export class AuthService {
     const updatedUser = await this.prismaService.user.update({
       where: { id: user.id },
       data: {
+        firstName: data.firstName,
+        lastName: data.lastName,
         passwordHash,
         isActive: true,
         invitationToken: null, // Clear invitation token
@@ -470,36 +468,112 @@ export class AuthService {
     const appUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const registrationUrl = `${appUrl}/register?token=${token}&email=${encodeURIComponent(email)}`;
 
-    const defaultMessage =
-      'You have been invited to join our Document Management System. Please click the link below to complete your registration.';
+    const defaultMessage = 'You have been invited to join our Document Management System. Please complete your registration to get started.';
     const message = customMessage || defaultMessage;
 
     try {
       await this.mailer.sendMail({
         to: email,
-        subject: 'Invitation to Document Management System',
+        subject: 'Invitation to DocuFlow - Complete Your Registration',
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #333;">Welcome to Document Management System</h2>
-            <p>${message}</p>
-            <p>Please click the button below to complete your registration:</p>
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${registrationUrl}" 
-                 style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
-                Complete Registration
-              </a>
-            </div>
-            <p style="color: #666; font-size: 14px;">
-              This invitation will expire in 7 days. If you cannot click the button above, copy and paste this link into your browser:
-            </p>
-            <p style="color: #666; font-size: 12px; word-break: break-all;">
-              ${registrationUrl}
-            </p>
-            <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-            <p style="color: #999; font-size: 12px;">
-              If you did not expect this invitation, please ignore this email.
-            </p>
-          </div>
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Complete Your Registration</title>
+          </head>
+          <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+            <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f5f5f5; padding: 20px;">
+              <tr>
+                <td align="center">
+                  <table cellpadding="0" cellspacing="0" border="0" width="600" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <!-- Header -->
+                    <tr>
+                      <td style="padding: 40px 40px 20px; text-align: center; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-radius: 8px 8px 0 0;">
+                        <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: bold;">DocuFlow</h1>
+                        <p style="margin: 10px 0 0; color: #e2e8f0; font-size: 14px;">Document Management System</p>
+                      </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                      <td style="padding: 40px;">
+                        <h2 style="margin: 0 0 20px; color: #1e293b; font-size: 24px;">Welcome to DocuFlow! 🎉</h2>
+                        <p style="margin: 0 0 15px; color: #475569; font-size: 16px; line-height: 1.6;">
+                          ${message}
+                        </p>
+                        
+                        <!-- Email Info Box -->
+                        <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 25px 0; background-color: #f0f9ff; border-left: 4px solid #3b82f6; padding: 15px; border-radius: 4px;">
+                          <tr>
+                            <td>
+                              <p style="margin: 0 0 5px; color: #1e40af; font-size: 14px; font-weight: 600;">
+                                📧 Your Registration Email
+                              </p>
+                              <p style="margin: 0; color: #1e40af; font-size: 15px; word-break: break-all;">
+                                ${email}
+                              </p>
+                            </td>
+                          </tr>
+                        </table>
+                        
+                        <p style="margin: 0 0 15px; color: #475569; font-size: 16px; line-height: 1.6;">
+                          Click the button below to complete your registration and set your password:
+                        </p>
+                        
+                        <!-- Button -->
+                        <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 30px 0;">
+                          <tr>
+                            <td align="center">
+                              <a href="${registrationUrl}" style="display: inline-block; padding: 14px 40px; background-color: #f97316; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 600;">
+                                Complete Registration
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
+                        
+                        <p style="margin: 0 0 15px; color: #475569; font-size: 14px; line-height: 1.6;">
+                          Or copy and paste this link into your browser:
+                        </p>
+                        <p style="margin: 0 0 15px; color: #3b82f6; font-size: 14px; word-break: break-all;">
+                          ${registrationUrl}
+                        </p>
+                        
+                        <!-- Warning Box -->
+                        <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 25px 0; background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 4px;">
+                          <tr>
+                            <td>
+                              <p style="margin: 0; color: #92400e; font-size: 14px; line-height: 1.6;">
+                                <strong>⚠️ Important:</strong> This invitation will expire in 7 days.
+                              </p>
+                            </td>
+                          </tr>
+                        </table>
+                        
+                        <p style="margin: 0 0 15px; color: #475569; font-size: 14px; line-height: 1.6;">
+                          If you didn't expect this invitation, please ignore this email.
+                        </p>
+                      </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                      <td style="padding: 30px 40px; background-color: #f8fafc; border-radius: 0 0 8px 8px; border-top: 1px solid #e2e8f0;">
+                        <p style="margin: 0 0 10px; color: #64748b; font-size: 13px; line-height: 1.6;">
+                          Need help? Contact our support team at <a href="mailto:support@docuflow.com" style="color: #f97316; text-decoration: none;">support@docuflow.com</a>
+                        </p>
+                        <p style="margin: 0; color: #94a3b8; font-size: 12px;">
+                          © ${new Date().getFullYear()} DocuFlow. All rights reserved.
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </body>
+          </html>
         `,
       });
 
@@ -507,7 +581,7 @@ export class AuthService {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(`Failed to send invitation email to ${email}: ${errorMessage}`);
-      throw new BadRequestException('Failed to send invitation email');
+      throw new BadRequestException('Failed to send invitation email. Please contact support if the issue persists.');
     }
   }
 }
