@@ -30,15 +30,30 @@ export class GetUsersQueryDto {
   @IsString()
   search?: string;
 
+  @ApiProperty({ example: 'johndoe', description: 'Search by username', required: false })
+  @IsOptional()
+  @IsString()
+  username?: string;
+
   @ApiProperty({ example: 'ADMIN', description: 'Filter by role name', required: false })
   @IsOptional()
   @IsString()
   role?: string;
 
+  @ApiProperty({ example: 'uuid-role-id', description: 'Filter by role ID', required: false })
+  @IsOptional()
+  @IsString()
+  roleId?: string;
+
   @ApiProperty({ example: 'IT', description: 'Filter by department name', required: false })
   @IsOptional()
   @IsString()
   department?: string;
+
+  @ApiProperty({ example: 'uuid-dept-id', description: 'Filter by department ID', required: false })
+  @IsOptional()
+  @IsString()
+  departmentId?: string;
 
   @ApiProperty({ example: true, description: 'Filter by active status', required: false })
   @IsOptional()
@@ -49,4 +64,14 @@ export class GetUsersQueryDto {
     return undefined;
   })
   isActive?: boolean;
+
+  @ApiProperty({ example: 'firstName', description: 'Sort by field', required: false })
+  @IsOptional()
+  @IsString()
+  sortBy?: string;
+
+  @ApiProperty({ example: 'ASC', description: 'Sort order (ASC or DESC)', required: false })
+  @IsOptional()
+  @IsString()
+  sortOrder?: 'ASC' | 'DESC';
 }

@@ -433,9 +433,14 @@ export class UsersService {
     page?: number;
     limit?: number;
     search?: string;
+    username?: string;
     role?: string;
+    roleId?: string;
     department?: string;
+    departmentId?: string;
     isActive?: boolean;
+    sortBy?: string;
+    sortOrder?: 'ASC' | 'DESC';
   }): Promise<{
     users: UserEntity[];
     total: number;
@@ -454,6 +459,12 @@ export class UsersService {
     // Build where clause
     const where: any = {};
 
+    // Search by username specifically
+    if (query.username) {
+      where.username = { contains: query.username, mode: 'insensitive' };
+    }
+
+    // General search across multiple fields
     if (query.search) {
       where.OR = [
         { firstName: { contains: query.search, mode: 'insensitive' } },
@@ -463,11 +474,17 @@ export class UsersService {
       ];
     }
 
-    if (query.role) {
+    // Filter by role ID (preferred) or role name
+    if (query.roleId) {
+      where.roleId = query.roleId;
+    } else if (query.role) {
       where.role = { name: { equals: query.role, mode: 'insensitive' } };
     }
 
-    if (query.department) {
+    // Filter by department ID (preferred) or department name
+    if (query.departmentId) {
+      where.departmentId = query.departmentId;
+    } else if (query.department) {
       where.department = { name: { equals: query.department, mode: 'insensitive' } };
     }
 
@@ -485,8 +502,18 @@ export class UsersService {
       );
     }
 
+    // Build orderBy clause
+    const orderBy: any = {};
+    if (query.sortBy) {
+      const sortOrder = query.sortOrder === 'DESC' ? 'desc' : 'asc';
+      orderBy[query.sortBy] = sortOrder;
+    } else {
+      orderBy.createdAt = 'desc';
+    }
+
     // Debug final where clause
     this.logger.log(`Final where clause:`, JSON.stringify(where, null, 2));
+    this.logger.log(`Final orderBy clause:`, JSON.stringify(orderBy, null, 2));
 
     // Get users with pagination
     const [users, total] = await Promise.all([
@@ -495,7 +522,7 @@ export class UsersService {
         include: { role: true, department: true },
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
       }),
       this.prisma.user.count({ where }),
     ]);
