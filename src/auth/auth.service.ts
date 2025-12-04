@@ -134,34 +134,133 @@ export class AuthService {
     return { accessToken, refreshToken: nextRefreshToken };
   }
 
-  async forgotPassword(email: string): Promise<void> {
+  async forgotPassword(email: string): Promise<{ message: string }> {
     const user = await this.usersService.findByEmail(email);
-    if (!user) return; // do not leak existence
+    if (!user) {
+      throw new BadRequestException('No account found with this email address');
+    }
+    
     const token = crypto.randomBytes(32).toString('hex');
     const expires = new Date(Date.now() + 1000 * 60 * 30); // 30 minutes
     await this.usersService.setResetPasswordToken(user.id, token, expires);
-    const appUrl = process.env.APP_URL ?? 'http://localhost:3000';
-    const resetLink = `${appUrl}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
-    await this.mailer.sendMail({
+    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3001';
+    const resetLink = `${frontendUrl}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
+    
+    try {
+      await this.mailer.sendMail({
       to: email,
-      subject: 'Reset your password',
-      html: `Click the link to reset your password (valid 30 minutes): <a href="${resetLink}">${resetLink}</a>`,
-    });
+      subject: 'Reset Your Password - DocuFlow',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Reset Your Password</title>
+        </head>
+        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+          <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f5f5f5; padding: 20px;">
+            <tr>
+              <td align="center">
+                <table cellpadding="0" cellspacing="0" border="0" width="600" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                  <!-- Header -->
+                  <tr>
+                    <td style="padding: 40px 40px 20px; text-align: center; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-radius: 8px 8px 0 0;">
+                      <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: bold;">DocuFlow</h1>
+                      <p style="margin: 10px 0 0; color: #e2e8f0; font-size: 14px;">Document Management System</p>
+                    </td>
+                  </tr>
+                  
+                  <!-- Content -->
+                  <tr>
+                    <td style="padding: 40px;">
+                      <h2 style="margin: 0 0 20px; color: #1e293b; font-size: 24px;">Password Reset Request</h2>
+                      <p style="margin: 0 0 15px; color: #475569; font-size: 16px; line-height: 1.6;">
+                        Hello <strong>${user.firstName} ${user.lastName}</strong>,
+                      </p>
+                      <p style="margin: 0 0 15px; color: #475569; font-size: 16px; line-height: 1.6;">
+                        We received a request to reset the password for your account. Click the button below to create a new password:
+                      </p>
+                      
+                      <!-- Button -->
+                      <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 30px 0;">
+                        <tr>
+                          <td align="center">
+                            <a href="${resetLink}" style="display: inline-block; padding: 14px 40px; background-color: #f97316; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 600;">
+                              Reset Password
+                            </a>
+                          </td>
+                        </tr>
+                      </table>
+                      
+                      <p style="margin: 0 0 15px; color: #475569; font-size: 14px; line-height: 1.6;">
+                        Or copy and paste this link into your browser:
+                      </p>
+                      <p style="margin: 0 0 15px; color: #3b82f6; font-size: 14px; word-break: break-all;">
+                        ${resetLink}
+                      </p>
+                      
+                      <!-- Warning Box -->
+                      <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 25px 0; background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 4px;">
+                        <tr>
+                          <td>
+                            <p style="margin: 0; color: #92400e; font-size: 14px; line-height: 1.6;">
+                              <strong>⚠️ Important:</strong> This link will expire in 30 minutes for security reasons.
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
+                      
+                      <p style="margin: 0 0 15px; color: #475569; font-size: 14px; line-height: 1.6;">
+                        If you didn't request a password reset, please ignore this email. Your password will remain unchanged.
+                      </p>
+                    </td>
+                  </tr>
+                  
+                  <!-- Footer -->
+                  <tr>
+                    <td style="padding: 30px 40px; background-color: #f8fafc; border-radius: 0 0 8px 8px; border-top: 1px solid #e2e8f0;">
+                      <p style="margin: 0 0 10px; color: #64748b; font-size: 13px; line-height: 1.6;">
+                        Need help? Contact our support team at <a href="mailto:support@docuflow.com" style="color: #f97316; text-decoration: none;">support@docuflow.com</a>
+                      </p>
+                      <p style="margin: 0; color: #94a3b8; font-size: 12px;">
+                        © ${new Date().getFullYear()} DocuFlow. All rights reserved.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
+      `,
+      });
+    } catch (error) {
+      this.logger.error('Failed to send reset password email', error);
+      // Still return success to user for security, but log the error
+      // In production, you might want to use a proper error monitoring service
+      throw new BadRequestException('Failed to send reset email. Please contact support or try again later.');
+    }
+    
+    return { message: 'Password reset instructions have been sent to your email' };
   }
 
-  async resetPassword(email: string, token: string, newPassword: string): Promise<void> {
+  async resetPassword(email: string, token: string, newPassword: string): Promise<{ message: string }> {
     const user = await this.usersService.findByEmail(email);
     const { resetPasswordToken, resetPasswordExpires } = (user ?? {}) as {
       resetPasswordToken: string | null | undefined;
       resetPasswordExpires: Date | null | undefined;
     };
     if (!user || !resetPasswordToken || !resetPasswordExpires)
-      throw new BadRequestException('Invalid token');
+      throw new BadRequestException('Invalid reset token or email');
     if (resetPasswordToken !== token || resetPasswordExpires.getTime() < Date.now()) {
-      throw new BadRequestException('Invalid or expired token');
+      throw new BadRequestException('Reset token has expired. Please request a new password reset');
     }
     await this.usersService.setPassword(user.id, newPassword);
     await this.usersService.clearResetPasswordToken(user.id);
+    
+    return { message: 'Password has been reset successfully. You can now login with your new password' };
   }
 
   // ===== INVITATION SYSTEM =====

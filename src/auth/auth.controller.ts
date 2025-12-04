@@ -18,6 +18,7 @@ import { InviteUserDto } from '../users/dto/invite-user.dto';
 import { RegisterFromInvitationDto } from '../users/dto/register-from-invitation.dto';
 import { ResendInvitationDto } from '../users/dto/resend-invitation.dto';
 import { Public } from './decorators/public.decorator';
+import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
 
 // Keep DTOs if needed later
 class LoginDto {
@@ -29,11 +30,22 @@ class RefreshDto {
   refreshToken!: string;
 }
 class ForgotDto {
+  @IsEmail({}, { message: 'Please provide a valid email address' })
+  @IsNotEmpty({ message: 'Email is required' })
   email!: string;
 }
 class ResetDto {
+  @IsEmail({}, { message: 'Please provide a valid email address' })
+  @IsNotEmpty({ message: 'Email is required' })
   email!: string;
+  
+  @IsString()
+  @IsNotEmpty({ message: 'Token is required' })
   token!: string;
+  
+  @IsString()
+  @IsNotEmpty({ message: 'New password is required' })
+  @MinLength(6, { message: 'Password must be at least 6 characters long' })
   newPassword!: string;
 }
 
@@ -138,14 +150,16 @@ export class AuthController {
     return this.authService.refresh(dto.userId, dto.refreshToken);
   }
 
+  @Public()
   @Post('forgot-password')
   @ApiOperation({ summary: 'Send password reset email' })
   @ApiBody({ schema: { properties: { email: { type: 'string', format: 'email' } } } })
   async forgotPassword(@Body() dto: ForgotDto) {
-    await this.authService.forgotPassword(dto.email);
-    return { success: true };
+    const result = await this.authService.forgotPassword(dto.email);
+    return { success: true, message: result.message };
   }
 
+  @Public()
   @Post('reset-password')
   @ApiOperation({ summary: 'Reset password using token' })
   @ApiBody({
@@ -158,8 +172,8 @@ export class AuthController {
     },
   })
   async resetPassword(@Body() dto: ResetDto) {
-    await this.authService.resetPassword(dto.email, dto.token, dto.newPassword);
-    return { success: true };
+    const result = await this.authService.resetPassword(dto.email, dto.token, dto.newPassword);
+    return { success: true, message: result.message };
   }
 
   @UseGuards(AuthGuard('jwt'))
