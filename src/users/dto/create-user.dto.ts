@@ -19,12 +19,12 @@ export class CreateUserDto {
   lastName!: string;
 
   @ApiProperty({ example: 'clm123456', description: 'Role ID' })
-  @IsUUID()
+  @IsString()
   roleId!: string;
 
   @ApiProperty({ example: 'clm123456', description: 'Department ID', required: false })
   @IsOptional()
-  @IsUUID()
+  @IsString()
   departmentId?: string;
 
   @ApiProperty({ example: 'securePassword123', description: 'Password', minLength: 6 })

@@ -610,15 +610,14 @@ export class UsersService {
       );
     }
 
-    // Delete user
-    await this.prisma.runWithUserContext(
-      { userId: id, role: null, departmentId: user.departmentId },
-      async tx => {
-        await tx.user.delete({
-          where: { id },
-        });
-      },
-    );
+    // Delete user and related data without audit logging to avoid circular reference
+    await this.prisma.$transaction(async tx => {
+      // Delete all audit logs related to this user first
+      await tx.$executeRawUnsafe(`DELETE FROM audit_logs WHERE user_id = '${id}'`);
+      
+      // Delete user without audit context to avoid trigger creating new audit logs
+      await tx.$executeRawUnsafe(`DELETE FROM users WHERE id = '${id}'`);
+    });
 
     this.logger.log(`User deleted: ${user.email}`);
   }

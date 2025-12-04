@@ -24,7 +24,7 @@ export class UpdateUserDto {
 
   @ApiProperty({ example: 'clm123456', description: 'Role ID', required: false })
   @IsOptional()
-  @IsUUID()
+  @IsString()
   roleId?: string;
 
   @ApiProperty({ example: 'clm123456', description: 'Department ID', required: false })
