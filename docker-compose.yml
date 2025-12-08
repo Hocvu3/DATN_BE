@@ -65,25 +65,6 @@ services:
       AWS_ACCESS_KEY_ID: dummy_access_key
       AWS_SECRET_ACCESS_KEY: dummy_secret_key
       AWS_S3_BUCKET_NAME: dev-bucket
-      
-      # Other configurations
-      MAX_FILE_SIZE: 10485760
-      UPLOAD_PATH: /app/uploads
-      TEMP_PATH: /app/temp
-      AUDIT_LOG_RETENTION_DAYS: 2555
-      AUDIT_LOG_ENCRYPTION: "true"
-      OCR_ENABLED: "true"
-      OCR_LANGUAGE: vie+eng
-      FTS_ENABLED: "true"
-      FTS_LANGUAGE: simple
-      NOTIFICATION_RETENTION_DAYS: 90
-      REAL_TIME_NOTIFICATIONS: "true"
-      DIGITAL_SIGNATURE_ENABLED: "true"
-      SIGNATURE_EXPIRY_DAYS: 30
-      WATERMARK_ENABLED: "true"
-      WATERMARK_TEXT: CONFIDENTIAL
-      DLP_ENABLED: "true"
-      DLP_PATTERNS: '["credit_card", "ssn", "email", "phone"]'
     volumes:
       - app_uploads:/app/uploads
       - app_temp:/app/temp
