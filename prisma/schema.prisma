@@ -62,6 +62,9 @@ model User {
   signatureRequests SignatureRequest[] @relation("SignatureRequester")
   digitalSignatures DigitalSignature[] @relation("SignatureCreator")
   
+  // Signature stamp relations
+  createdSignatures Signature[] @relation("SignatureStampCreator")
+  
   // Asset relations
   uploadedAssets    Asset[] @relation("AssetUploader")
   avatar            Asset? @relation("UserAvatar")
@@ -262,6 +265,24 @@ model DigitalSignature {
   signer          User      @relation("SignatureCreator", fields: [signerId], references: [id])
 
   @@map("digital_signatures")
+}
+
+// ===== SIGNATURE STAMPS MANAGEMENT =====
+model Signature {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  imageUrl    String   @map("image_url")
+  s3Key       String   @map("s3_key")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  createdById String   @map("created_by_id")
+  createdBy   User     @relation("SignatureStampCreator", fields: [createdById], references: [id])
+
+  @@map("signatures")
 }
 
 // ===== ASSET MANAGEMENT =====

@@ -114,6 +114,14 @@ export class S3Service {
     return this.generatePresignedUrl(fileName, contentType, 'documents');
   }
 
+  async generateSignaturePresignedUrl(
+    fileName: string,
+    contentType: string,
+  ): Promise<{ presignedUrl: string; key: string; publicUrl: string }> {
+    this.logger.log(`Generating signature presigned URL for file: ${fileName}`);
+    return this.generatePresignedUrl(fileName, contentType, 'signatures');
+  }
+
   async getFile(key: string): Promise<{ body: any; contentType: string; contentLength: number }> {
     this.logger.log(`Getting file from S3: ${key}`);
 
