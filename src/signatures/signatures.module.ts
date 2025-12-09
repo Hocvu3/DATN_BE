@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
 import { S3Module } from '../s3/s3.module';
+import { CryptoService } from '../common/services/crypto.service';
 import { SignatureRepository } from './repositories/signature.repository';
 import { SignatureStampsRepository } from './repositories/signature-stamps.repository';
 import { SignatureService } from './services/signature.service';
@@ -16,6 +17,7 @@ import { SignatureStampsController } from './controllers/signature-stamps.contro
     SignatureStampsRepository,
     SignatureService,
     SignatureStampsService,
+    CryptoService,
   ],
   exports: [SignatureService, SignatureStampsService, SignatureRepository, SignatureStampsRepository],
 })

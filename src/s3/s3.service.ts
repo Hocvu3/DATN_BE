@@ -227,4 +227,29 @@ export class S3Service {
       throw error;
     }
   }
+
+  /**
+   * Get file buffer from S3 for hashing/verification
+   */
+  async getFileBuffer(key: string): Promise<Buffer> {
+    try {
+      const command = new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+      });
+
+      const response = await this.s3Client.send(command);
+      
+      // Convert stream to buffer
+      const chunks: Uint8Array[] = [];
+      for await (const chunk of response.Body as any) {
+        chunks.push(chunk);
+      }
+      
+      return Buffer.concat(chunks);
+    } catch (error) {
+      this.logger.error(`Failed to get file buffer from S3: ${key}`, error);
+      throw error;
+    }
+  }
 }

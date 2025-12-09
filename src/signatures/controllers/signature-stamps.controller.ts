@@ -33,7 +33,8 @@ import { CreateSignatureDto } from '../dto/create-signature.dto';
 import { UpdateSignatureDto } from '../dto/update-signature.dto';
 import { GetSignaturesQueryDto } from '../dto/get-signatures-query.dto';
 import { SignaturePresignedUrlDto } from '../dto/signature-presigned-url.dto';
-import type { Signature } from '@prisma/client';
+import { ApplySignatureDto } from '../dto/apply-signature.dto';
+import type { Signature, DigitalSignature } from '@prisma/client';
 import type { SignatureStampWithCreator } from '../entities/signature-stamp.entity';
 
 @ApiTags('Signature Stamps')
@@ -165,5 +166,63 @@ export class SignatureStampsController {
     @Body() body: SignaturePresignedUrlDto,
   ): Promise<{ presignedUrl: string; key: string; publicUrl: string }> {
     return this.signatureStampsService.generatePresignedUrl(body.fileName, body.contentType);
+  }
+
+  @Post('apply')
+  @ApiOperation({
+    summary: 'Apply signature stamp to document',
+    description: 'Apply a signature stamp to a document during approval process. Creates a digital signature with the selected stamp.',
+  })
+  @ApiCreatedResponse({
+    description: 'Signature stamp applied successfully',
+  })
+  @ApiBadRequestResponse({ description: 'Invalid input data or inactive signature stamp' })
+  @ApiNotFoundResponse({ description: 'Signature stamp or document not found' })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+  async applySignature(
+    @Req() req: { user: { userId: string; role: string } },
+    @Body() applySignatureDto: ApplySignatureDto,
+  ): Promise<DigitalSignature> {
+    return this.signatureStampsService.applySignatureStamp(
+      applySignatureDto,
+      req.user.userId,
+      req.user.role,
+    );
+  }
+
+  @Get('documents/:documentId/signatures')
+  @ApiOperation({
+    summary: 'Get signatures for document',
+    description: 'Retrieve all digital signatures applied to a specific document.',
+  })
+  @ApiParam({ name: 'documentId', description: 'Document ID', type: 'string' })
+  @ApiOkResponse({
+    description: 'Document signatures retrieved successfully',
+  })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+  async getDocumentSignatures(@Param('documentId') documentId: string): Promise<DigitalSignature[]> {
+    return this.signatureStampsService.getDocumentSignatures(documentId);
+  }
+
+  @Post('verify/:signatureId')
+  @ApiOperation({
+    summary: 'Verify digital signature',
+    description: 'Verify the integrity of a digital signature and detect if document has been modified.',
+  })
+  @ApiParam({ name: 'signatureId', description: 'Digital signature ID', type: 'string' })
+  @ApiOkResponse({
+    description: 'Signature verification completed',
+  })
+  @ApiNotFoundResponse({ description: 'Signature not found' })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+  async verifySignature(
+    @Param('signatureId') signatureId: string,
+  ): Promise<{
+    isValid: boolean;
+    status: string;
+    message: string;
+    details: any;
+  }> {
+    return this.signatureStampsService.verifySignature(signatureId);
   }
 }

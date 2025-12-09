@@ -256,6 +256,12 @@ model DigitalSignature {
   signedAt        DateTime  @default(now()) @map("signed_at")
   ipAddress       String?   @map("ip_address")
   userAgent       String?   @map("user_agent")
+  
+  // Digital signature hash and verification
+  documentHash    String?   @map("document_hash") // SHA-256 hash of the document
+  signatureHash   String?   @map("signature_hash") // RSA signature of the document hash
+  signatureStatus String    @default("VALID") @map("signature_status") // VALID, INVALID, PENDING
+  verifiedAt      DateTime? @map("verified_at") // Last verification timestamp
 
   // Relations
   requestId       String    @map("request_id")
@@ -263,6 +269,9 @@ model DigitalSignature {
   
   signerId        String    @map("signer_id")
   signer          User      @relation("SignatureCreator", fields: [signerId], references: [id])
+  
+  signatureStampId String?  @map("signature_stamp_id")
+  signatureStamp   Signature? @relation("DigitalSignatureStamp", fields: [signatureStampId], references: [id], onDelete: SetNull)
 
   @@map("digital_signatures")
 }
@@ -281,6 +290,8 @@ model Signature {
   // Relations
   createdById String   @map("created_by_id")
   createdBy   User     @relation("SignatureStampCreator", fields: [createdById], references: [id])
+  
+  digitalSignatures DigitalSignature[] @relation("DigitalSignatureStamp")
 
   @@map("signatures")
 }
