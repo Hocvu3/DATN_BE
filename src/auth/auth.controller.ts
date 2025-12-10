@@ -133,6 +133,7 @@ export class AuthController {
   }
 
   @UseGuards(AuthGuard('jwt'))
+  @Public()
   @Post('logout')
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Logout (invalidate refresh token)' })
@@ -141,6 +142,7 @@ export class AuthController {
     return { success: true };
   }
 
+  @Public()
   @Post('refresh')
   @ApiOperation({ summary: 'Refresh access token' })
   @ApiBody({
