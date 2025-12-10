@@ -1,5 +1,7 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { S3Service } from '../../s3/s3.service';
+import { CryptoService } from '../../common/services/crypto.service';
 import { DocumentStatus, Prisma } from '@prisma/client';
 
 export interface CreateVersionDto {
@@ -19,7 +21,13 @@ export interface UpdateVersionDto {
 
 @Injectable()
 export class DocumentVersionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(DocumentVersionsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly s3Service: S3Service,
+    private readonly cryptoService: CryptoService,
+  ) {}
 
   /**
    * Get all versions for a document
@@ -400,6 +408,184 @@ export class DocumentVersionsService {
         timeDiff: version2.createdAt.getTime() - version1.createdAt.getTime(),
         statusChanged: version1.status !== version2.status,
       },
+    };
+  }
+
+  /**
+   * Validate document version integrity
+   * Hash file from S3 and compare with stored checksum and digital signatures
+   */
+  async validateVersion(documentId: string, versionId: string) {
+    const version = await this.prisma.documentVersion.findFirst({
+      where: {
+        id: versionId,
+        documentId,
+      },
+      include: {
+        document: true,
+        digitalSignatures: {
+          include: {
+            signer: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!version) {
+      throw new NotFoundException('Version not found');
+    }
+
+    const issues: string[] = [];
+    let isValid = true;
+    let actualChecksum: string | null = null;
+    let checksumMatch = false;
+    let fileExists = false;
+    let signatureVerifications: Array<{
+      signatureId: string;
+      signerName: string;
+      isValid: boolean;
+      status: string;
+    }> = [];
+
+    // Log docs
+    this.logger.log(`Result: ${JSON.stringify(version, null, 2)}`);
+    
+    // Calculate hash from S3 file
+    if (!version.s3Key) {
+      issues.push('File location is missing - cannot validate document');
+      isValid = false;
+    } else {
+      try {
+        this.logger.log(`Calculating hash from S3 file: ${version.s3Key}`);
+        
+        // Calculate SHA-256 hash using CryptoService
+        actualChecksum = await this.cryptoService.generateHashFromS3(version.s3Key);
+        fileExists = true;
+        
+        // Compare with stored checksum (if exists)
+        if (version.checksum && version.checksum.trim() !== '') {
+          checksumMatch = actualChecksum.toLowerCase() === version.checksum.toLowerCase();
+          
+          if (!checksumMatch) {
+            issues.push(`Document file has been modified or corrupted`);
+            isValid = false;
+            this.logger.warn(`Hash mismatch for version ${version.id}: stored=${version.checksum.substring(0, 16)}... actual=${actualChecksum.substring(0, 16)}...`);
+          } else {
+            this.logger.log(`File integrity verified - hash matches for version ${version.id}`);
+          }
+        } else {
+          // No stored checksum to compare
+          this.logger.log(`No stored checksum found, calculated: ${actualChecksum}`);
+          checksumMatch = false;
+        }
+        
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        this.logger.error(`Failed to access file from S3: ${errorMessage}`);
+        issues.push(`Cannot access document file - file may have been deleted or moved`);
+        isValid = false;
+        fileExists = false;
+      }
+    }
+
+    // Verify digital signatures
+    const signatureCount = version.digitalSignatures.length;
+    const hasSignatures = signatureCount > 0;
+    
+    if (hasSignatures && fileExists && actualChecksum) {
+      this.logger.log(`Verifying ${signatureCount} digital signature(s) for version ${version.id}`);
+      
+      for (const signature of version.digitalSignatures) {
+        try {
+          // Compare signature hash with actual file hash
+          const signatureHashMatch = signature.documentHash?.toLowerCase() === actualChecksum.toLowerCase();
+          
+          let signatureValid = false;
+          if (signatureHashMatch && signature.signatureHash) {
+            // Verify the RSA signature
+            const verification = await this.cryptoService.verifyFileSignature(
+              version.s3Key!,
+              signature.documentHash!,
+              signature.signatureHash,
+            );
+            signatureValid = verification.isValid;
+          }
+          
+          const signerName = signature.signer 
+            ? `${signature.signer.firstName} ${signature.signer.lastName}`
+            : 'Unknown';
+          
+          signatureVerifications.push({
+            signatureId: signature.id,
+            signerName,
+            isValid: signatureValid && signatureHashMatch,
+            status: signatureValid && signatureHashMatch 
+              ? 'VALID' 
+              : !signatureHashMatch 
+                ? 'FILE_MODIFIED' 
+                : 'SIGNATURE_INVALID',
+          });
+          
+          if (!signatureValid || !signatureHashMatch) {
+            const reason = !signatureHashMatch 
+              ? 'Document was modified after it was signed' 
+              : 'Digital signature is invalid or corrupted';
+            issues.push(`Signature by ${signerName}: ${reason}`);
+            isValid = false;
+          }
+          
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          this.logger.error(`Failed to verify signature ${signature.id}: ${errorMessage}`);
+          
+          const signerName = signature.signer 
+            ? `${signature.signer.firstName} ${signature.signer.lastName}`
+            : 'Unknown';
+          
+          signatureVerifications.push({
+            signatureId: signature.id,
+            signerName,
+            isValid: false,
+            status: 'ERROR',
+          });
+          
+          issues.push(`Unable to verify signature by ${signerName} - verification process failed`);
+          isValid = false;
+        }
+      }
+    }
+
+    return {
+      isValid,
+      version: {
+        id: version.id,
+        versionNumber: version.versionNumber,
+        status: version.status,
+        fileSize: version.fileSize,
+        s3Key: version.s3Key,
+        s3Url: version.s3Url,
+        mimeType: version.mimeType,
+        createdAt: version.createdAt,
+      },
+      validation: {
+        fileExists,
+        checksumMatch,
+        actualChecksum,
+        signatureCount,
+        hasSignatures,
+        signatureVerifications,
+      },
+      issues,
+      message: isValid 
+        ? 'Document is valid and safe to use'
+        : `Document validation found ${issues.length} issue${issues.length > 1 ? 's' : ''}`,
     };
   }
 }

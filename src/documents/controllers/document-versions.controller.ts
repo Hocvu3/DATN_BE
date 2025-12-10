@@ -133,4 +133,16 @@ export class DocumentVersionsController {
   ) {
     return this.documentVersionsService.compareVersions(documentId, versionId1, versionId2);
   }
+
+  /**
+   * Validate version integrity
+   */
+  @Get(':versionId/validate')
+  @Roles('ADMIN', 'MANAGER', 'EMPLOYEE')
+  async validateVersion(
+    @Param('documentId') documentId: string,
+    @Param('versionId') versionId: string,
+  ) {
+    return this.documentVersionsService.validateVersion(documentId, versionId);
+  }
 }
