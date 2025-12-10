@@ -3,12 +3,14 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { S3Module } from '../s3/s3.module';
 import { DocumentRepository } from './repositories/document.repository';
 import { DocumentService } from './services/document.service';
+import { DocumentVersionsService } from './services/document-versions.service';
 import { DocumentController } from './controllers/document.controller';
+import { DocumentVersionsController } from './controllers/document-versions.controller';
 
 @Module({
   imports: [PrismaModule, S3Module],
-  controllers: [DocumentController],
-  providers: [DocumentRepository, DocumentService],
-  exports: [DocumentService, DocumentRepository],
+  controllers: [DocumentController, DocumentVersionsController],
+  providers: [DocumentRepository, DocumentService, DocumentVersionsService],
+  exports: [DocumentService, DocumentRepository, DocumentVersionsService],
 })
 export class DocumentsModule { }

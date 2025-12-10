@@ -100,8 +100,7 @@ model Department {
 
   // Relations
   users       User[]
-  documents   Document[] // Added relation to Document
-  assets      Asset[]
+  documents   Document[]
 
   @@map("departments")
 }
@@ -112,7 +111,6 @@ model Document {
   title           String
   description     String?
   documentNumber  String    @unique @map("document_number")
-  status          DocumentStatus @default(DRAFT)
   securityLevel   SecurityLevel @default(INTERNAL) @map("security_level")
   isConfidential  Boolean   @default(false) @map("is_confidential")
   createdAt       DateTime  @default(now()) @map("created_at")
@@ -132,7 +130,6 @@ model Document {
   assets          Asset[] @relation("DocumentAssets")
   tags            DocumentTag[]
   comments        Comment[]
-  signatureRequests SignatureRequest[]
   auditLogs       AuditLog[] @relation("AuditLogDocument")
 
   @@map("documents")
@@ -141,15 +138,26 @@ model Document {
 model DocumentVersion {
   id              String    @id @default(cuid())
   versionNumber   Int       @map("version_number")
+  
+  // File information
   filePath        String    @map("file_path")
-  s3Key           String?   @map("s3_key") // S3 object key
-  s3Url           String?   @map("s3_url") // S3 public URL
+  s3Key           String?   @map("s3_key") // S3 object key for PDF/document
+  s3Url           String?   @map("s3_url") // S3 public URL for PDF/document
+  thumbnailUrl    String?   @map("thumbnail_url") // Preview thumbnail
   fileSize        Int       @map("file_size")
   checksum        String    // For integrity verification
   mimeType        String    @map("mime_type")
+  
+  // Security
   isEncrypted     Boolean   @default(true) @map("is_encrypted")
   encryptionKey   String?   @map("encryption_key") // Encrypted key reference
+  
+  // Status per version
+  status          DocumentStatus @default(DRAFT)
+  
+  // Timestamps
   createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   // Relations
   documentId      String    @map("document_id")
@@ -157,8 +165,13 @@ model DocumentVersion {
   
   creatorId       String    @map("creator_id")
   creator         User      @relation("VersionCreator", fields: [creatorId], references: [id])
+  
+  // Digital signatures for this version
+  digitalSignatures DigitalSignature[] @relation("SignedVersion")
 
   @@unique([documentId, versionNumber])
+  @@index([documentId, status])
+  @@index([status])
   @@map("document_versions")
 }
 
@@ -236,26 +249,21 @@ model SignatureRequest {
   expiresAt       DateTime            @map("expires_at")
   signatureType   SignatureType       @map("signature_type")
   reason          String?
-
-  // Relations
-  documentId      String              @map("document_id")
-  document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
   
+  // Document reference (kept for workflow tracking)
+  documentId      String              @map("document_id")
+  
+  // Relations
   requesterId     String              @map("requester_id")
   requester       User     @relation("SignatureRequester", fields: [requesterId], references: [id])
-  
-  signatures      DigitalSignature[]
 
   @@map("signature_requests")
 }
 
 model DigitalSignature {
   id              String    @id @default(cuid())
-  signatureData   String    @map("signature_data") // Encrypted signature data
-  certificateInfo Json      @map("certificate_info") // Certificate information
+  signatureData   String    @map("signature_data") // Signature metadata JSON
   signedAt        DateTime  @default(now()) @map("signed_at")
-  ipAddress       String?   @map("ip_address")
-  userAgent       String?   @map("user_agent")
   
   // Digital signature hash and verification
   documentHash    String?   @map("document_hash") // SHA-256 hash of the document
@@ -264,8 +272,8 @@ model DigitalSignature {
   verifiedAt      DateTime? @map("verified_at") // Last verification timestamp
 
   // Relations
-  requestId       String    @map("request_id")
-  request         SignatureRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  documentVersionId String   @map("document_version_id")
+  documentVersion   DocumentVersion @relation("SignedVersion", fields: [documentVersionId], references: [id], onDelete: Cascade)
   
   signerId        String    @map("signer_id")
   signer          User      @relation("SignatureCreator", fields: [signerId], references: [id])
@@ -273,6 +281,8 @@ model DigitalSignature {
   signatureStampId String?  @map("signature_stamp_id")
   signatureStamp   Signature? @relation("DigitalSignatureStamp", fields: [signatureStampId], references: [id], onDelete: SetNull)
 
+  @@index([documentVersionId])
+  @@index([signerId])
   @@map("digital_signatures")
 }
 
@@ -312,9 +322,6 @@ model Asset {
   
   uploadedById      String?   @map("uploaded_by")
   uploadedBy        User?     @relation("AssetUploader", fields: [uploadedById], references: [id])
-  
-  departmentId      String?   @map("department_id")
-  department        Department? @relation(fields: [departmentId], references: [id])
   
   userAvatarId      String?   @unique @map("user_avatar_id")
   userAvatar        User?     @relation("UserAvatar", fields: [userAvatarId], references: [id])

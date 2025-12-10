@@ -87,9 +87,7 @@ export class DocumentService {
     const document = await this.documentRepository.create({
       title: createDocumentDto.title,
       description: createDocumentDto.description,
-      documentNumber: createDocumentDto.documentNumber,
-      status: createDocumentDto.status || DocumentStatus.DRAFT,
-      securityLevel: createDocumentDto.securityLevel || SecurityLevel.INTERNAL,
+      documentNumber: createDocumentDto.documentNumber,      securityLevel: createDocumentDto.securityLevel || SecurityLevel.INTERNAL,
       isConfidential: createDocumentDto.isConfidential || false,
       creator: { connect: { id: creatorId } },
       approver: createDocumentDto.approverId
@@ -307,9 +305,7 @@ export class DocumentService {
     // Update document
     const updatedDocument = await this.documentRepository.update(id, {
       title: updateDocumentDto.title,
-      description: updateDocumentDto.description,
-      status: updateDocumentDto.status,
-      securityLevel: updateDocumentDto.securityLevel,
+      description: updateDocumentDto.description,      securityLevel: updateDocumentDto.securityLevel,
       isConfidential: updateDocumentDto.isConfidential,
       approver: updateDocumentDto.approverId
         ? { connect: { id: updateDocumentDto.approverId } }
@@ -635,9 +631,7 @@ export class DocumentService {
       contentType: assetData.contentType,
       sizeBytes: assetData.sizeBytes ? assetData.sizeBytes.toString() : null,
       ownerDocument: { connect: { id: documentId } },
-      uploadedBy: { connect: { id: userId } },
-      department: user.departmentId ? { connect: { id: user.departmentId } } : undefined,
-    });
+      uploadedBy: { connect: { id: userId } },    });
 
     // Create audit log
 
@@ -751,9 +745,7 @@ export class DocumentService {
       sizeBytes: assetData.sizeBytes ? assetData.sizeBytes.toString() : null,
       isCover: assetData.isCover || false,
       ownerDocument: { connect: { id: documentId } },
-      uploadedBy: { connect: { id: userId } },
-      department: user.departmentId ? { connect: { id: user.departmentId } } : undefined,
-    });
+      uploadedBy: { connect: { id: userId } },    });
 
     // Create audit log
 

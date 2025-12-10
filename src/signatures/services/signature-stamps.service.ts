@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { SignatureStampsRepository } from '../repositories/signature-stamps.repository';
 import { S3Service } from '../../s3/s3.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -7,19 +7,15 @@ import { CreateSignatureDto } from '../dto/create-signature.dto';
 import { UpdateSignatureDto } from '../dto/update-signature.dto';
 import { GetSignaturesQueryDto } from '../dto/get-signatures-query.dto';
 import { ApplySignatureDto } from '../dto/apply-signature.dto';
-import type { Signature, DigitalSignature, Prisma } from '@prisma/client';
+import type { Signature, DigitalSignature } from '@prisma/client';
 import type { SignatureStampWithCreator } from '../entities/signature-stamp.entity';
-import { SignatureType, SignatureStatus } from '@prisma/client';
 import { Logger } from '@nestjs/common';
-import { REQUEST } from '@nestjs/core';
-import type { Request } from 'express';
 
 @Injectable()
 export class SignatureStampsService {
   private readonly logger = new Logger(SignatureStampsService.name);
 
   constructor(
-    @Inject(REQUEST) private readonly request: Request,
     private readonly signatureStampsRepository: SignatureStampsRepository,
     private readonly s3Service: S3Service,
     private readonly prisma: PrismaService,
@@ -147,12 +143,14 @@ export class SignatureStampsService {
     }
     this.logger.log(`[applySignatureStamp] Signature stamp validated: ${signatureStamp.name}`);
 
-    // Verify document exists
+    // Verify document exists and get latest version
     const document = await this.prisma.document.findUnique({
       where: { id: documentId },
       include: {
-        assets: {
-          where: { isCover: false },
+        versions: {
+          orderBy: {
+            versionNumber: 'desc',
+          },
           take: 1,
         },
       },
@@ -163,89 +161,42 @@ export class SignatureStampsService {
     }
     this.logger.log(`[applySignatureStamp] Document validated: ${document.title}`);
 
-    // Generate document hash and signature
+    // Get latest document version
+    const latestVersion = document.versions?.[0];
+    if (!latestVersion) {
+      this.logger.error(`[applySignatureStamp] No document versions found for document ${documentId}`);
+      throw new BadRequestException('Document has no versions to sign');
+    }
+    this.logger.log(`[applySignatureStamp] Latest version: v${latestVersion.versionNumber} (ID: ${latestVersion.id})`);
+
+    // Generate document hash and signature from latest version
     let documentHash: string | null = null;
     let signatureHash: string | null = null;
     
-    if (document.assets && document.assets.length > 0) {
-      try {
-        const mainAsset = document.assets[0];
-        // Extract S3 key from URL or use s3Key field if available
-        const s3Key = this.extractS3Key(mainAsset.s3Url);
-        this.logger.log(`[applySignatureStamp] Extracted S3 key: ${s3Key}`);
-        
-        // Generate SHA-256 hash of the document
-        const { hash, signature } = await this.cryptoService.hashAndSignFile(s3Key);
-        documentHash = hash;
-        signatureHash = signature;
-        this.logger.log(`[applySignatureStamp] Generated hashes - Document: ${documentHash?.substring(0, 20)}..., Signature: ${signatureHash?.substring(0, 20)}...`);
-      } catch (error) {
-        this.logger.error('[applySignatureStamp] Failed to generate document hash:', error);
-        // Continue without hash if file not accessible
+    try {
+      const s3Key = latestVersion.s3Key;
+      if (!s3Key) {
+        this.logger.error(`[applySignatureStamp] No S3 key found for version ${latestVersion.id}`);
+        throw new BadRequestException('Document version has no S3 key');
       }
-    } else {
-      this.logger.warn(`[applySignatureStamp] No assets found for document ${documentId}`);
+      this.logger.log(`[applySignatureStamp] Using S3 key: ${s3Key}`);
+      
+      // Generate SHA-256 hash of the document version
+      const { hash, signature } = await this.cryptoService.hashAndSignFile(s3Key);
+      documentHash = hash;
+      signatureHash = signature;
+      this.logger.log(`[applySignatureStamp] Generated hashes - Document: ${documentHash?.substring(0, 20)}..., Signature: ${signatureHash?.substring(0, 20)}...`);
+    } catch (error) {
+      this.logger.error('[applySignatureStamp] Failed to generate document hash:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new BadRequestException('Failed to generate document hash: ' + errorMessage);
     }
 
-    // Check if document already has a signature request
-    let signatureRequest = await this.prisma.signatureRequest.findFirst({
-      where: {
-        documentId,
-      },
-      orderBy: {
-        requestedAt: 'desc',
-      },
-    });
-
-    if (signatureRequest) {
-      this.logger.log(`[applySignatureStamp] Found existing signature request ${signatureRequest.id}, updating...`);
-      // Update existing signature request
-      signatureRequest = await this.prisma.signatureRequest.update({
-        where: { id: signatureRequest.id },
-        data: {
-          requesterId: userId,
-          signatureType: SignatureType.ELECTRONIC,
-          reason: reason || 'Document approval signature',
-          status: SignatureStatus.SIGNED,
-          signedAt: new Date(),
-        },
-      });
-    } else {
-      this.logger.log(`[applySignatureStamp] No existing signature request found, creating new one...`);
-      // Create a new signature request
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30); // 30 days from now
-
-      signatureRequest = await this.prisma.signatureRequest.create({
-        data: {
-          documentId,
-          requesterId: userId,
-          signatureType: SignatureType.ELECTRONIC,
-          expiresAt,
-          reason: reason || 'Document approval signature',
-          status: SignatureStatus.SIGNED,
-          signedAt: new Date(),
-        },
-      });
-      this.logger.log(`[applySignatureStamp] Created new signature request ${signatureRequest.id}`);
-    }
-
-    // Get IP and User Agent
-    let ipAddress: string | null | undefined = this.request?.ip;
-    const xForwardedFor = this.request?.headers['x-forwarded-for'];
-    if (!ipAddress && xForwardedFor) {
-      if (Array.isArray(xForwardedFor)) {
-        ipAddress = xForwardedFor[0];
-      } else {
-        ipAddress = xForwardedFor;
-      }
-    }
-    const userAgent = this.request?.headers['user-agent'] || '';
-
-    // Check if document already has a digital signature
+    // Check if this version already has a signature from this user
     const existingSignature = await this.prisma.digitalSignature.findFirst({
       where: {
-        requestId: signatureRequest.id,
+        documentVersionId: latestVersion.id,
+        signerId: userId,
       },
     });
 
@@ -253,32 +204,23 @@ export class SignatureStampsService {
 
     if (existingSignature) {
       this.logger.log(`[applySignatureStamp] Found existing digital signature ${existingSignature.id}, updating...`);
-      // Update existing digital signature
+      // Update existing digital signature (re-sign scenario)
       digitalSignature = await this.prisma.digitalSignature.update({
         where: { id: existingSignature.id },
         data: {
-          signerId: userId,
           signatureStampId: signatureStampId,
           documentHash: documentHash,
           signatureHash: signatureHash,
           signatureStatus: 'VALID',
           verifiedAt: new Date(),
-          ipAddress: ipAddress,
-          userAgent: userAgent,
           signatureData: JSON.stringify({
             stampName: signatureStamp.name,
             stampImageUrl: signatureStamp.imageUrl,
             appliedAt: new Date().toISOString(),
             documentHash: documentHash,
-          }),
-          certificateInfo: {
-            signatureStampId: signatureStampId,
-            stampName: signatureStamp.name,
-            appliedBy: userId,
-            appliedAt: new Date().toISOString(),
-            documentHash: documentHash,
+            versionNumber: latestVersion.versionNumber,
             signatureAlgorithm: 'RSA-SHA256',
-          } as unknown as Prisma.InputJsonValue,
+          }),
         },
       });
       this.logger.log(`[applySignatureStamp] Updated digital signature ${digitalSignature.id}`);
@@ -287,64 +229,43 @@ export class SignatureStampsService {
       // Create new digital signature
       digitalSignature = await this.prisma.digitalSignature.create({
         data: {
-          requestId: signatureRequest.id,
           signerId: userId,
           signatureStampId: signatureStampId,
+          documentVersionId: latestVersion.id,
           documentHash: documentHash,
           signatureHash: signatureHash,
           signatureStatus: 'VALID',
           verifiedAt: new Date(),
-          ipAddress: ipAddress,
-          userAgent: userAgent,
           signatureData: JSON.stringify({
             stampName: signatureStamp.name,
             stampImageUrl: signatureStamp.imageUrl,
             appliedAt: new Date().toISOString(),
             documentHash: documentHash,
-          }),
-          certificateInfo: {
-            signatureStampId: signatureStampId,
-            stampName: signatureStamp.name,
-            appliedBy: userId,
-            appliedAt: new Date().toISOString(),
-            documentHash: documentHash,
+            versionNumber: latestVersion.versionNumber,
             signatureAlgorithm: 'RSA-SHA256',
-          } as unknown as Prisma.InputJsonValue,
+          }),
         },
       });
       this.logger.log(`[applySignatureStamp] Created new digital signature ${digitalSignature.id}`);
     }
 
+    // Update version status to APPROVED
+    await this.prisma.documentVersion.update({
+      where: { id: latestVersion.id },
+      data: { status: 'APPROVED' },
+    });
+    this.logger.log(`[applySignatureStamp] Updated version ${latestVersion.id} status to APPROVED`);
+
     this.logger.log(`[applySignatureStamp] Successfully applied signature for document ${documentId}`);
     return digitalSignature;
   }
 
-  /**
-   * Extract S3 key from S3 URL
-   */
-  private extractS3Key(s3Url: string): string {
-    try {
-      const url = new URL(s3Url);
-      // Handle both path-style and virtual-hosted-style URLs
-      let key = url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname;
-      // Remove bucket name if present in path
-      const bucketName = process.env.AWS_S3_BUCKET_NAME;
-      if (bucketName && key.startsWith(`${bucketName}/`)) {
-        key = key.substring(bucketName.length + 1);
-      }
-      return key;
-    } catch (error) {
-      // If URL parsing fails, assume it's already a key
-      return s3Url;
-    }
-  }
-
   async getDocumentSignatures(documentId: string): Promise<DigitalSignature[]> {
-    // Get all signature requests for the document
-    const signatureRequests = await this.prisma.signatureRequest.findMany({
+    // Get all versions with their signatures
+    const versions = await this.prisma.documentVersion.findMany({
       where: { documentId },
       include: {
-        signatures: {
+        digitalSignatures: {
           include: {
             signer: {
               select: {
@@ -360,8 +281,8 @@ export class SignatureStampsService {
       },
     });
 
-    // Flatten all signatures from all requests
-    const allSignatures = signatureRequests.flatMap(request => request.signatures);
+    // Flatten all signatures from all versions
+    const allSignatures = versions.flatMap(version => version.digitalSignatures);
     return allSignatures as any;
   }
 
@@ -379,20 +300,13 @@ export class SignatureStampsService {
       signatureValid?: boolean;
     };
   }> {
-    // Get the digital signature
+    // Get the digital signature with version info
     const digitalSignature = await this.prisma.digitalSignature.findUnique({
       where: { id: signatureId },
       include: {
-        request: {
+        documentVersion: {
           include: {
-            document: {
-              include: {
-                assets: {
-                  where: { isCover: false },
-                  take: 1,
-                },
-              },
-            },
+            document: true,
           },
         },
       },
@@ -411,23 +325,20 @@ export class SignatureStampsService {
       };
     }
 
-    const document = digitalSignature.request.document;
-    if (!document.assets || document.assets.length === 0) {
+    const version = digitalSignature.documentVersion;
+    if (!version || !version.s3Key) {
       return {
         isValid: false,
         status: 'INVALID',
-        message: 'Document file not found',
+        message: 'Document version file not found',
         details: {},
       };
     }
 
     try {
-      const mainAsset = document.assets[0];
-      const s3Key = this.extractS3Key(mainAsset.s3Url);
-
-      // Verify the signature
+      // Verify the signature using the version's S3 key
       const verification = await this.cryptoService.verifyFileSignature(
-        s3Key,
+        version.s3Key,
         digitalSignature.documentHash,
         digitalSignature.signatureHash,
       );

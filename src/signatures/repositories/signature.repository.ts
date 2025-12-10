@@ -22,14 +22,7 @@ export class SignatureRepository {
     return prisma.signatureRequest.create({
       data,
       include: {
-        document: true,
         requester: true,
-        signatures: {
-          include: {
-            request: true,
-            signer: true,
-          },
-        },
       },
     });
   }
@@ -38,14 +31,7 @@ export class SignatureRepository {
     return this.prisma.signatureRequest.findUnique({
       where: { id },
       include: {
-        document: true,
         requester: true,
-        signatures: {
-          include: {
-            request: true,
-            signer: true,
-          },
-        },
       },
     });
   }
@@ -54,14 +40,7 @@ export class SignatureRepository {
     return this.prisma.signatureRequest.findMany({
       where: { documentId },
       include: {
-        document: true,
         requester: true,
-        signatures: {
-          include: {
-            request: true,
-            signer: true,
-          },
-        },
       },
       orderBy: { requestedAt: 'desc' },
     });
@@ -131,42 +110,12 @@ export class SignatureRepository {
       this.prisma.signatureRequest.findMany({
         where,
         include: {
-          document: {
-            select: {
-              id: true,
-              title: true,
-              documentNumber: true,
-              versions: {
-                select: {
-                  versionNumber: true,
-                },
-                orderBy: {
-                  versionNumber: 'desc',
-                },
-                take: 1,
-              },
-            },
-          },
           requester: {
             select: {
               id: true,
               email: true,
               firstName: true,
               lastName: true,
-            },
-          },
-          signatures: {
-            select: {
-              id: true,
-              signedAt: true,
-              signer: {
-                select: {
-                  id: true,
-                  email: true,
-                  firstName: true,
-                  lastName: true,
-                },
-              },
             },
           },
         },
@@ -180,10 +129,6 @@ export class SignatureRepository {
     // Transform to include version number
     const requestsWithDetails: SignatureRequestWithDetails[] = requests.map(request => ({
       ...request,
-      document: {
-        ...request.document,
-        version: request.document.versions[0]?.versionNumber || 1,
-      },
     }));
 
     return { requests: requestsWithDetails, total };
@@ -199,14 +144,7 @@ export class SignatureRepository {
       where: { id },
       data,
       include: {
-        document: true,
         requester: true,
-        signatures: {
-          include: {
-            request: true,
-            signer: true,
-          },
-        },
       },
     });
   }
@@ -227,10 +165,9 @@ export class SignatureRepository {
     return prisma.digitalSignature.create({
       data,
       include: {
-        request: {
+        documentVersion: {
           include: {
             document: true,
-            requester: true,
           },
         },
         signer: true,
@@ -242,10 +179,9 @@ export class SignatureRepository {
     return this.prisma.digitalSignature.findUnique({
       where: { id },
       include: {
-        request: {
+        documentVersion: {
           include: {
             document: true,
-            requester: true,
           },
         },
         signer: true,
@@ -253,14 +189,13 @@ export class SignatureRepository {
     });
   }
 
-  async findDigitalSignaturesByRequestId(requestId: string): Promise<DigitalSignatureEntity[]> {
+  async findDigitalSignaturesByRequestId(documentVersionId: string): Promise<DigitalSignatureEntity[]> {
     return this.prisma.digitalSignature.findMany({
-      where: { requestId },
+      where: { documentVersionId },
       include: {
-        request: {
+        documentVersion: {
           include: {
             document: true,
-            requester: true,
           },
         },
         signer: true,
@@ -273,10 +208,9 @@ export class SignatureRepository {
     return this.prisma.digitalSignature.findMany({
       where: { signerId },
       include: {
-        request: {
+        documentVersion: {
           include: {
             document: true,
-            requester: true,
           },
         },
         signer: true,
@@ -315,14 +249,7 @@ export class SignatureRepository {
         },
       },
       include: {
-        document: true,
         requester: true,
-        signatures: {
-          include: {
-            request: true,
-            signer: true,
-          },
-        },
       },
     });
   }
@@ -355,14 +282,7 @@ export class SignatureRepository {
         // This might involve checking user roles, document permissions, etc.
       },
       include: {
-        document: true,
         requester: true,
-        signatures: {
-          include: {
-            request: true,
-            signer: true,
-          },
-        },
       },
       orderBy: { expiresAt: 'asc' },
     });
@@ -372,29 +292,16 @@ export class SignatureRepository {
     return this.prisma.signatureRequest.findMany({
       where: { requesterId },
       include: {
-        document: true,
         requester: true,
-        signatures: {
-          include: {
-            request: true,
-            signer: true,
-          },
-        },
       },
       orderBy: { requestedAt: 'desc' },
     });
   }
 
-  async checkIfUserCanSignRequest(requestId: string, userId: string): Promise<boolean> {
+  async checkIfUserCanSignRequest(documentVersionId: string, userId: string): Promise<boolean> {
     const request = await this.prisma.signatureRequest.findUnique({
-      where: { id: requestId },
+      where: { id: documentVersionId },
       include: {
-        document: {
-          include: {
-            creator: true,
-            approver: true,
-          },
-        },
         requester: true,
       },
     });
@@ -419,10 +326,20 @@ export class SignatureRepository {
       return false;
     }
 
+    // Fetch document to check permissions
+    const document = await this.prisma.document.findUnique({
+      where: { id: request.documentId },
+      select: { creatorId: true, approverId: true },
+    });
+
+    if (!document) {
+      return false;
+    }
+
     // Example logic: user can sign if they are the document creator, approver, or have ADMIN role
     return (
-      request.document.creatorId === userId ||
-      request.document.approverId === userId ||
+      document.creatorId === userId ||
+      document.approverId === userId ||
       user.role?.name === 'ADMIN'
     );
   }

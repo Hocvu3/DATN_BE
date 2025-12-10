@@ -28,7 +28,6 @@ export class DocumentRepository {
             author: { select: { id: true, email: true, firstName: true, lastName: true } },
           },
         },
-        signatureRequests: { include: { signatures: true } },
         auditLogs: true,
       },
     });
@@ -49,7 +48,6 @@ export class DocumentRepository {
             author: { select: { id: true, email: true, firstName: true, lastName: true } },
           },
         },
-        signatureRequests: { include: { signatures: true } },
         auditLogs: true,
       },
     });
@@ -80,7 +78,6 @@ export class DocumentRepository {
             author: { select: { id: true, email: true, firstName: true, lastName: true } },
           },
         },
-        signatureRequests: { include: { signatures: true } },
         auditLogs: true,
       },
     });
@@ -106,7 +103,6 @@ export class DocumentRepository {
             author: { select: { id: true, email: true, firstName: true, lastName: true } },
           },
         },
-        signatureRequests: { include: { signatures: true } },
         auditLogs: true,
       },
     });
@@ -180,7 +176,6 @@ export class DocumentRepository {
       include: {
         ownerDocument: true,
         uploadedBy: true,
-        department: true,
       },
     });
   }
@@ -191,7 +186,6 @@ export class DocumentRepository {
       include: {
         ownerDocument: true,
         uploadedBy: true,
-        department: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -203,7 +197,6 @@ export class DocumentRepository {
       include: {
         ownerDocument: true,
         uploadedBy: true,
-        department: true,
       },
     });
   }
@@ -336,10 +329,6 @@ export class DocumentRepository {
         { description: { contains: search, mode: 'insensitive' } },
         { documentNumber: { contains: search, mode: 'insensitive' } },
       ];
-    }
-
-    if (status) {
-      where.status = status as any;
     }
 
     if (securityLevel) {

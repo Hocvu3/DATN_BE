@@ -62,7 +62,6 @@ export class DocumentController {
           title: document.title,
           description: document.description,
           documentNumber: document.documentNumber,
-          status: document.status,
           securityLevel: document.securityLevel,
           isConfidential: document.isConfidential,
           creator: {

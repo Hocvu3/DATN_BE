@@ -33,16 +33,6 @@ export interface DocumentEntity extends Document {
       lastName: string;
     };
   }>;
-  signatureRequests: Array<{
-    id: string;
-    status: string;
-    requestedAt: Date;
-    signedAt?: Date | null;
-    expiresAt: Date;
-    signatureType: string;
-    reason?: string | null;
-    signatures: DigitalSignature[];
-  }>;
   auditLogs: Array<{
     id: string;
     action: string;

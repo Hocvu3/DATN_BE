@@ -76,16 +76,6 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
             createdAt: 'desc',
           },
         },
-        signatureRequests: {
-          include: {
-            requester: true,
-            signatures: {
-              include: {
-                signer: true,
-              },
-            },
-          },
-        },
       },
     });
   }
@@ -193,7 +183,6 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         versions: true,
         tags: true,
         comments: true,
-        signatureRequests: true,
         auditLogs: true,
       },
     });

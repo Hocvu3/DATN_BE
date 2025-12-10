@@ -49,7 +49,7 @@ export class SignatureService {
       async tx => {
         return this.signatureRepository.createSignatureRequest(
           {
-            document: { connect: { id: documentId } },
+            documentId: documentId,
             requester: { connect: { id: requesterId } },
             signatureType: signatureType,
             expiresAt: expirationDate,
@@ -198,24 +198,15 @@ export class SignatureService {
       throw new ForbiddenException('You do not have permission to sign this document');
     }
 
-    // Check if user has already signed this request
-    const existingSignature = request.signatures.find(sig => sig.signerId === signerId);
-    if (existingSignature) {
-      throw new ConflictException('You have already signed this document');
-    }
-
     // Create digital signature within context so triggers capture current user
     return this.prisma.runWithUserContext(
       { userId: signerId, role: userRole, departmentId: null },
       async tx => {
         const digitalSignature = await this.signatureRepository.createDigitalSignature(
           {
-            request: { connect: { id: requestId } },
+            documentVersion: { connect: { id: requestId } },
             signer: { connect: { id: signerId } },
             signatureData: signDocumentDto.signatureData,
-            certificateInfo: signDocumentDto.certificateInfo as unknown as Prisma.InputJsonValue,
-            ipAddress: signDocumentDto.ipAddress,
-            userAgent: signDocumentDto.userAgent,
           },
           tx,
         );
@@ -247,8 +238,7 @@ export class SignatureService {
     // Check permissions
     if (
       userRole !== 'ADMIN' &&
-      signature.signerId !== userId &&
-      signature.request.requesterId !== userId
+      signature.signerId !== userId
     ) {
       throw new ForbiddenException('You do not have permission to view this digital signature');
     }

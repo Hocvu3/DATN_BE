@@ -60,7 +60,6 @@ export class UsersService {
                 author: { select: { id: true, email: true, firstName: true, lastName: true } },
               },
             },
-            signatureRequests: { include: { signatures: true } },
             auditLogs: true,
           },
         },
@@ -74,7 +73,6 @@ export class UsersService {
                 author: { select: { id: true, email: true, firstName: true, lastName: true } },
               },
             },
-            signatureRequests: { include: { signatures: true } },
             auditLogs: true,
           },
         },
@@ -99,20 +97,9 @@ export class UsersService {
           },
         },
         notifications: true,
-        signatureRequests: {
-          include: {
-            document: {
-              include: {
-                tags: { include: { tag: true } },
-                creator: { select: { id: true, email: true, firstName: true, lastName: true } },
-              },
-            },
-            signatures: true,
-          },
-        },
         digitalSignatures: {
           include: {
-            request: {
+            documentVersion: {
               include: {
                 document: {
                   include: {
@@ -131,9 +118,7 @@ export class UsersService {
                 tags: { include: { tag: true } },
                 creator: { select: { id: true, email: true, firstName: true, lastName: true } },
               },
-            },
-            department: true,
-          },
+            },          },
         },
         auditLogs: {
           include: {
@@ -351,9 +336,7 @@ export class UsersService {
             s3Url: data.s3Url,
             contentType: data.contentType,
             sizeBytes: data.sizeBytes ? data.sizeBytes.toString() : null,
-            uploadedBy: { connect: { id: data.uploadedById } },
-            department: data.departmentId ? { connect: { id: data.departmentId } } : undefined,
-          },
+            uploadedBy: { connect: { id: data.uploadedById } },          },
         });
       },
     );
