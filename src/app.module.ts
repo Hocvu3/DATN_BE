@@ -6,7 +6,6 @@ import { PrismaModule } from './prisma/prisma.module';
 import { CommonModule } from './common/common.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
-import { RolesModule } from './roles/roles.module';
 import { DocumentsModule } from './documents/documents.module';
 import { DocumentVersionsModule } from './document-versions/document-versions.module';
 import { S3Module } from './s3/s3.module';
@@ -39,7 +38,6 @@ import { HealthModule } from './health/health.module';
     CommonModule,
     AuthModule,
     UsersModule,
-    RolesModule,
     DocumentsModule,
     DocumentVersionsModule,
     S3Module,
