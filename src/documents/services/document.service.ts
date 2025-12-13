@@ -819,4 +819,155 @@ export class DocumentService {
 
     return this.linkDocumentAssetWithCover(documentId, userId, coverData);
   }
+
+  /**
+   * Get dashboard statistics
+   */
+  async getDashboardStats(userId: string, userRole: string) {
+    const prisma = this.documentRepository['prisma'];
+
+    // Get document statistics - count by latest version status
+    const [
+      totalDocuments,
+      draftDocuments,
+      pendingDocuments,
+      approvedDocuments,
+      rejectedDocuments,
+      totalUsers,
+      totalDepartments,
+      documentsThisMonth,
+      documentsLastMonth,
+    ] = await Promise.all([
+      prisma.document.count(),
+      prisma.documentVersion.count({ where: { status: DocumentStatus.DRAFT } }),
+      prisma.documentVersion.count({ where: { status: DocumentStatus.PENDING_APPROVAL } }),
+      prisma.documentVersion.count({ where: { status: DocumentStatus.APPROVED } }),
+      prisma.documentVersion.count({ where: { status: DocumentStatus.REJECTED } }),
+      prisma.user.count({ where: { isActive: true } }),
+      prisma.department.count(),
+      prisma.document.count({
+        where: {
+          createdAt: {
+            gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+          },
+        },
+      }),
+      prisma.document.count({
+        where: {
+          createdAt: {
+            gte: new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1),
+            lt: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+          },
+        },
+      }),
+    ]);
+
+    // Get recent documents (last 10) with latest version status
+    const recentDocuments = await prisma.document.findMany({
+      take: 10,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        creator: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        department: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        versions: {
+          select: {
+            status: true,
+            versionNumber: true,
+          },
+          orderBy: { versionNumber: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    // Get documents by status for chart
+    const documentsByStatus = [
+      { status: 'DRAFT', count: draftDocuments, color: '#8c8c8c' },
+      { status: 'PENDING_APPROVAL', count: pendingDocuments, color: '#faad14' },
+      { status: 'APPROVED', count: approvedDocuments, color: '#52c41a' },
+      { status: 'REJECTED', count: rejectedDocuments, color: '#ff4d4f' },
+    ];
+
+    // Get documents created per day for last 7 days
+    const last7Days: Array<{ date: string; dayName: string; count: number }> = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      date.setHours(0, 0, 0, 0);
+      const nextDate = new Date(date);
+      nextDate.setDate(nextDate.getDate() + 1);
+
+      const count = await prisma.document.count({
+        where: {
+          createdAt: {
+            gte: date,
+            lt: nextDate,
+          },
+        },
+      });
+
+      last7Days.push({
+        date: date.toISOString().split('T')[0],
+        dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
+        count,
+      });
+    }
+
+    // Get documents by department
+    const departmentStats = await prisma.department.findMany({
+      select: {
+        id: true,
+        name: true,
+        _count: {
+          select: {
+            documents: true,
+          },
+        },
+      },
+    });
+
+    // Calculate growth percentage
+    const growthPercentage = documentsLastMonth > 0
+      ? Math.round(((documentsThisMonth - documentsLastMonth) / documentsLastMonth) * 100)
+      : documentsThisMonth > 0 ? 100 : 0;
+
+    return {
+      overview: {
+        totalDocuments,
+        totalUsers,
+        totalDepartments,
+        pendingApprovals: pendingDocuments,
+        documentsThisMonth,
+        growthPercentage,
+      },
+      documentsByStatus,
+      documentsPerDay: last7Days,
+      departmentStats: departmentStats.map(d => ({
+        id: d.id,
+        name: d.name,
+        documentCount: d._count.documents,
+      })),
+      recentDocuments: recentDocuments.map(doc => ({
+        id: doc.id,
+        title: doc.title,
+        documentNumber: doc.documentNumber,
+        status: doc.versions[0]?.status || 'DRAFT',
+        createdAt: doc.createdAt,
+        creator: doc.creator,
+        department: doc.department,
+      })),
+    };
+  }
 }

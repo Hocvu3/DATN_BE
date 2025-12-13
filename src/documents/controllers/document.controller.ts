@@ -97,6 +97,21 @@ export class DocumentController {
     }
   }
 
+  @Get('dashboard-stats')
+  @ApiOperation({ summary: 'Get dashboard statistics' })
+  @ApiOkResponse({ description: 'Dashboard statistics retrieved successfully' })
+  async getDashboardStats(
+    @Req() req: { user: { userId: string; role: string } },
+  ) {
+    try {
+      const stats = await this.documentService.getDashboardStats(req.user.userId, req.user.role);
+      return stats;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred';
+      throw new BadRequestException(errorMessage);
+    }
+  }
+
   @Get()
   @ApiOperation({ summary: 'Get documents with pagination and filters' })
   @ApiOkResponse({ description: 'Documents retrieved successfully' })
