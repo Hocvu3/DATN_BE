@@ -17,13 +17,13 @@ export enum SignatureType {
 
 export class GetSignatureRequestsQueryDto {
   @ApiProperty({
-    example: 'doc-123',
-    description: 'Filter by document ID',
+    example: 'doc-version-123',
+    description: 'Filter by document version ID',
     required: false,
   })
   @IsOptional()
   @IsString()
-  documentId?: string;
+  documentVersionId?: string;
 
   @ApiProperty({
     example: 'user-123',

@@ -118,9 +118,9 @@ export class SignatureController {
       },
     },
   })
-  @ApiQuery({ name: 'documentId', required: false, description: 'Filter by document ID' })
+  @ApiQuery({ name: 'documentVersionId', required: false, description: 'Filter by document version ID' })
   @ApiQuery({ name: 'requesterId', required: false, description: 'Filter by requester ID' })
-  @ApiQuery({ name: 'status', required: false, enum: ['PENDING', 'SIGNED', 'EXPIRED', 'REJECTED'] })
+  @ApiQuery({ name: 'status', required: false, enum: ['PENDING', 'SIGNED', 'EXPIRED', 'CANCELLED'] })
   @ApiQuery({
     name: 'signatureType',
     required: false,
@@ -456,6 +456,69 @@ export class SignatureController {
     @Body() signDocumentDto: SignDocumentDto,
   ): Promise<DigitalSignatureEntity> {
     return this.signatureService.signDocument(id, signDocumentDto, req.user.userId, req.user.role);
+  }
+
+  @Put('requests/:id/sign')
+  @Roles('ADMIN', 'MANAGER', 'EMPLOYEE')
+  @ApiOperation({
+    summary: 'Sign document (PUT)',
+    description:
+      'Sign a document using digital signature. User must have permission to sign the document.',
+  })
+  @ApiParam({ name: 'id', description: 'Signature request ID' })
+  @ApiOkResponse({
+    description: 'Document signed successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        signatureData: { type: 'string' },
+        signedAt: { type: 'string', format: 'date-time' },
+        documentHash: { type: 'string' },
+        signatureHash: { type: 'string' },
+        request: { type: 'object' },
+        signer: { type: 'object' },
+      },
+    },
+  })
+  @ApiBadRequestResponse({ description: 'Invalid signature data or request cannot be signed' })
+  @ApiNotFoundResponse({ description: 'Signature request not found' })
+  @ApiForbiddenResponse({ description: 'Insufficient permissions to sign this document' })
+  async signDocumentPut(
+    @Req() req: { user: { userId: string; role: string } },
+    @Param('id') id: string,
+    @Body() signDocumentDto: SignDocumentDto,
+  ): Promise<DigitalSignatureEntity> {
+    return this.signatureService.signDocument(id, signDocumentDto, req.user.userId, req.user.role);
+  }
+
+  @Put('requests/:id/revoke')
+  @Roles('ADMIN', 'MANAGER', 'EMPLOYEE')
+  @ApiOperation({
+    summary: 'Revoke signature',
+    description:
+      'Revoke a signed document signature. Changes status back to PENDING and deletes the digital signature.',
+  })
+  @ApiParam({ name: 'id', description: 'Signature request ID' })
+  @ApiOkResponse({
+    description: 'Signature revoked successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        status: { type: 'string', example: 'PENDING' },
+        message: { type: 'string', example: 'Signature revoked successfully' },
+      },
+    },
+  })
+  @ApiBadRequestResponse({ description: 'Request is not signed or cannot be revoked' })
+  @ApiNotFoundResponse({ description: 'Signature request not found' })
+  @ApiForbiddenResponse({ description: 'Insufficient permissions to revoke this signature' })
+  async revokeSignature(
+    @Req() req: { user: { userId: string; role: string } },
+    @Param('id') id: string,
+  ): Promise<{ id: string; status: string; message: string }> {
+    return this.signatureService.revokeSignature(id, req.user.userId, req.user.role);
   }
 
   @Get('signatures/:id')

@@ -168,6 +168,7 @@ model DocumentVersion {
   
   // Digital signatures for this version
   digitalSignatures DigitalSignature[] @relation("SignedVersion")
+  signatureRequests SignatureRequest[] @relation("SignatureRequestVersion")
 
   @@unique([documentId, versionNumber])
   @@index([documentId, status])
@@ -250,13 +251,16 @@ model SignatureRequest {
   signatureType   SignatureType       @map("signature_type")
   reason          String?
   
-  // Document reference (kept for workflow tracking)
-  documentId      String              @map("document_id")
+  // Document version reference (for tracking specific version)
+  documentVersionId String            @map("document_version_id")
+  documentVersion   DocumentVersion   @relation("SignatureRequestVersion", fields: [documentVersionId], references: [id], onDelete: Cascade)
   
   // Relations
   requesterId     String              @map("requester_id")
-  requester       User     @relation("SignatureRequester", fields: [requesterId], references: [id])
+  requester       User                @relation("SignatureRequester", fields: [requesterId], references: [id])
 
+  @@index([documentVersionId])
+  @@index([status])
   @@map("signature_requests")
 }
 

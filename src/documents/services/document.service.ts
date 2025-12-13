@@ -5,9 +5,12 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { DocumentRepository } from '../repositories/document.repository';
 import { S3Service } from '../../s3/s3.service';
+import { SignatureService } from '../../signatures/services/signature.service';
 import type {
   DocumentEntity,
   DocumentVersionEntity,
@@ -28,6 +31,8 @@ export class DocumentService {
   constructor(
     private readonly documentRepository: DocumentRepository,
     private readonly s3Service: S3Service,
+    @Inject(forwardRef(() => SignatureService))
+    private readonly signatureService: SignatureService,
   ) { }
 
   // ===== FILE VALIDATION METHODS =====
@@ -384,6 +389,16 @@ export class DocumentService {
       isEncrypted: createVersionDto.isEncrypted,
       encryptionKey: createVersionDto.encryptionKey,
     });
+
+    // Auto-create signature request for this version
+    try {
+      await this.signatureService.autoCreateSignatureRequest(version.id, userId);
+      this.logger.log(`Signature request auto-created for version ${version.id}`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(`Failed to auto-create signature request: ${errorMessage}`);
+      // Don't fail the version creation if signature request fails
+    }
 
     // Create audit log
 

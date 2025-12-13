@@ -4,12 +4,12 @@ import { $Enums, SignatureType } from '@prisma/client';
 
 export class CreateSignatureRequestDto {
   @ApiProperty({
-    example: 'doc-123',
-    description: 'ID of the document to be signed',
+    example: 'doc-version-123',
+    description: 'ID of the document version to be signed',
   })
   @IsString()
   @IsNotEmpty()
-  documentId!: string;
+  documentVersionId!: string;
 
   @ApiProperty({
     example: 'ELECTRONIC',

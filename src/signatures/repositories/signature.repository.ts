@@ -36,18 +36,23 @@ export class SignatureRepository {
     });
   }
 
-  async findSignatureRequestsByDocumentId(documentId: string): Promise<SignatureRequestEntity[]> {
+  async findSignatureRequestsByDocumentId(documentVersionId: string): Promise<SignatureRequestEntity[]> {
     return this.prisma.signatureRequest.findMany({
-      where: { documentId },
+      where: { documentVersionId },
       include: {
         requester: true,
+        documentVersion: {
+          include: {
+            document: true,
+          },
+        },
       },
       orderBy: { requestedAt: 'desc' },
     });
   }
 
   async findSignatureRequests(params: {
-    documentId?: string;
+    documentVersionId?: string;
     requesterId?: string;
     status?: string;
     signatureType?: string;
@@ -59,7 +64,7 @@ export class SignatureRepository {
     sortOrder?: 'asc' | 'desc';
   }): Promise<{ requests: SignatureRequestWithDetails[]; total: number }> {
     const {
-      documentId,
+      documentVersionId,
       requesterId,
       status,
       signatureType,
@@ -76,8 +81,8 @@ export class SignatureRepository {
     // Build where clause
     const where: Prisma.SignatureRequestWhereInput = {};
 
-    if (documentId) {
-      where.documentId = documentId;
+    if (documentVersionId) {
+      where.documentVersionId = documentVersionId;
     }
 
     if (requesterId) {
@@ -118,6 +123,17 @@ export class SignatureRepository {
               lastName: true,
             },
           },
+          documentVersion: {
+            include: {
+              document: {
+                select: {
+                  id: true,
+                  title: true,
+                  documentNumber: true,
+                },
+              },
+            },
+          },
         },
         orderBy,
         skip,
@@ -126,7 +142,7 @@ export class SignatureRepository {
       this.prisma.signatureRequest.count({ where }),
     ]);
 
-    // Transform to include version number
+    // Transform to include version details
     const requestsWithDetails: SignatureRequestWithDetails[] = requests.map(request => ({
       ...request,
     }));
@@ -326,12 +342,13 @@ export class SignatureRepository {
       return false;
     }
 
-    // Fetch document to check permissions
-    const document = await this.prisma.document.findUnique({
-      where: { id: request.documentId },
-      select: { creatorId: true, approverId: true },
+    // Fetch document version and document to check permissions
+    const documentVersion = await this.prisma.documentVersion.findUnique({
+      where: { id: request.documentVersionId },
+      include: { document: { select: { creatorId: true, approverId: true } } },
     });
 
+    const document = documentVersion?.document;
     if (!document) {
       return false;
     }
