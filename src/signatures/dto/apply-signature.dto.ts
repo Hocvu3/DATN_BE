@@ -26,4 +26,13 @@ export class ApplySignatureDto {
   @IsOptional()
   @IsString()
   reason?: string;
+
+  @ApiProperty({
+    description: 'Type of signature application: 1 = stamp only (no hash), 2 = stamp with hash',
+    example: 1,
+    required: false,
+    enum: [1, 2],
+  })
+  @IsOptional()
+  type?: number;
 }

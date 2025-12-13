@@ -10,6 +10,8 @@ import { ApplySignatureDto } from '../dto/apply-signature.dto';
 import type { Signature, DigitalSignature } from '@prisma/client';
 import type { SignatureStampWithCreator } from '../entities/signature-stamp.entity';
 import { Logger } from '@nestjs/common';
+import { PDFDocument } from 'pdf-lib';
+import { Readable } from 'stream';
 
 @Injectable()
 export class SignatureStampsService {
@@ -44,7 +46,7 @@ export class SignatureStampsService {
 
   async findAll(
     query: GetSignaturesQueryDto,
-  ): Promise<{ signatures: SignatureStampWithCreator[]; total: number; page: number; limit: number }> {
+  ): Promise<{ stamps: SignatureStampWithCreator[]; total: number; page: number; limit: number }> {
     const { signatures, total } = await this.signatureStampsRepository.findMany({
       search: query.search,
       isActive: query.isActive,
@@ -53,7 +55,7 @@ export class SignatureStampsService {
     });
 
     return {
-      signatures,
+      stamps: signatures,
       total,
       page: query.page || 1,
       limit: query.limit || 10,
@@ -127,7 +129,7 @@ export class SignatureStampsService {
     userId: string,
     userRole: string,
   ): Promise<DigitalSignature> {
-    const { documentId, signatureStampId, reason } = applySignatureDto;
+    const { documentId, signatureStampId, reason, type = 1 } = applySignatureDto;
 
     this.logger.log(`[applySignatureStamp] Starting approval process for document ${documentId} by user ${userId} with stamp ${signatureStampId}`);
 
@@ -169,27 +171,104 @@ export class SignatureStampsService {
     }
     this.logger.log(`[applySignatureStamp] Latest version: v${latestVersion.versionNumber} (ID: ${latestVersion.id})`);
 
-    // Generate document hash and signature from latest version
+    // Get S3 key
+    const s3Key = latestVersion.s3Key;
+    if (!s3Key) {
+      this.logger.error(`[applySignatureStamp] No S3 key found for version ${latestVersion.id}`);
+      throw new BadRequestException('Document version has no S3 key');
+    }
+    this.logger.log(`[applySignatureStamp] Using S3 key: ${s3Key}`);
+
+    // Download PDF from S3
+    this.logger.log(`[applySignatureStamp] Downloading PDF from S3...`);
+    const pdfBuffer = await this.s3Service.getFileBuffer(s3Key);
+    this.logger.log(`[applySignatureStamp] Downloaded PDF, size: ${pdfBuffer.length} bytes`);
+
+    // Download stamp image from S3
+    this.logger.log(`[applySignatureStamp] Downloading stamp image from S3...`);
+    const stampImageBuffer = await this.s3Service.getFileBuffer(signatureStamp.s3Key);
+    this.logger.log(`[applySignatureStamp] Downloaded stamp image, size: ${stampImageBuffer.length} bytes`);
+
+    // Process PDF: Insert stamp image
+    this.logger.log(`[applySignatureStamp] Processing PDF to insert stamp...`);
+    let modifiedPdfBuffer: Buffer;
+    try {
+      const pdfDoc = await PDFDocument.load(pdfBuffer);
+      const pages = pdfDoc.getPages();
+      const firstPage = pages[0];
+      const { width, height } = firstPage.getSize();
+
+      // Embed stamp image
+      let stampImage;
+      const stampImageUrl = signatureStamp.imageUrl;
+      if (stampImageUrl.toLowerCase().endsWith('.png')) {
+        stampImage = await pdfDoc.embedPng(stampImageBuffer);
+      } else if (stampImageUrl.toLowerCase().match(/\.(jpg|jpeg)$/)) {
+        stampImage = await pdfDoc.embedJpg(stampImageBuffer);
+      } else {
+        throw new BadRequestException('Stamp image must be PNG or JPG format');
+      }
+
+      // Calculate stamp position (top-left corner with 1-2cm padding)
+      const stampWidth = 150;
+      const stampHeight = 75;
+      // Convert cm to points (1 cm ≈ 28.35 points in PDF)
+      const paddingCm = 1.5; // 1.5cm padding
+      const padding = paddingCm * 28.35;
+      const x = padding;
+      const y = height - stampHeight - padding;
+
+      // Draw stamp on first page
+      firstPage.drawImage(stampImage, {
+        x,
+        y,
+        width: stampWidth,
+        height: stampHeight,
+      });
+
+      this.logger.log(`[applySignatureStamp] Stamp inserted at position (${x}, ${y})`);
+
+      // Save modified PDF
+      const modifiedPdfBytes = await pdfDoc.save();
+      modifiedPdfBuffer = Buffer.from(modifiedPdfBytes);
+      this.logger.log(`[applySignatureStamp] Modified PDF size: ${modifiedPdfBuffer.length} bytes`);
+    } catch (error) {
+      this.logger.error('[applySignatureStamp] Failed to process PDF:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new BadRequestException('Failed to insert stamp into PDF: ' + errorMessage);
+    }
+
+    // Upload modified PDF back to S3 (replace the original)
+    this.logger.log(`[applySignatureStamp] Uploading modified PDF to S3...`);
+    try {
+      await this.s3Service.uploadFileBuffer(
+        modifiedPdfBuffer,
+        s3Key,
+        'application/pdf',
+      );
+      this.logger.log(`[applySignatureStamp] Modified PDF uploaded successfully`);
+    } catch (error) {
+      this.logger.error('[applySignatureStamp] Failed to upload modified PDF:', error);
+      throw new BadRequestException('Failed to upload modified PDF to S3');
+    }
+
+    // Generate document hash only if type=2
     let documentHash: string | null = null;
     let signatureHash: string | null = null;
     
-    try {
-      const s3Key = latestVersion.s3Key;
-      if (!s3Key) {
-        this.logger.error(`[applySignatureStamp] No S3 key found for version ${latestVersion.id}`);
-        throw new BadRequestException('Document version has no S3 key');
+    if (type === 2) {
+      try {
+        const { hash, signature } = await this.cryptoService.hashAndSignFile(s3Key);
+        documentHash = hash;
+        signatureHash = signature;
+        this.logger.log(`[applySignatureStamp] Generated hashes - Document: ${documentHash?.substring(0, 20)}..., Signature: ${signatureHash?.substring(0, 20)}...`);
+      } catch (error) {
+        this.logger.error('[applySignatureStamp] Failed to generate document hash:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        throw new BadRequestException('Failed to generate document hash: ' + errorMessage);
       }
-      this.logger.log(`[applySignatureStamp] Using S3 key: ${s3Key}`);
-      
-      // Generate SHA-256 hash of the document version
-      const { hash, signature } = await this.cryptoService.hashAndSignFile(s3Key);
-      documentHash = hash;
-      signatureHash = signature;
-      this.logger.log(`[applySignatureStamp] Generated hashes - Document: ${documentHash?.substring(0, 20)}..., Signature: ${signatureHash?.substring(0, 20)}...`);
-    } catch (error) {
-      this.logger.error('[applySignatureStamp] Failed to generate document hash:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      throw new BadRequestException('Failed to generate document hash: ' + errorMessage);
+    } else {
+      this.logger.log(`[applySignatureStamp] Type=${type}, skipping hash generation`);
     }
 
     // Check if this version already has a signature from this user
@@ -205,46 +284,60 @@ export class SignatureStampsService {
     if (existingSignature) {
       this.logger.log(`[applySignatureStamp] Found existing digital signature ${existingSignature.id}, updating...`);
       // Update existing digital signature (re-sign scenario)
+      const updateData: any = {
+        signatureStampId: signatureStampId,
+        signatureStatus: 'VALID',
+        verifiedAt: new Date(),
+        signatureData: JSON.stringify({
+          stampName: signatureStamp.name,
+          stampImageUrl: signatureStamp.imageUrl,
+          appliedAt: new Date().toISOString(),
+          versionNumber: latestVersion.versionNumber,
+          signatureAlgorithm: type === 2 ? 'RSA-SHA256' : 'STAMP_ONLY',
+          reason: reason || 'Document stamped',
+          type: type,
+        }),
+      };
+      
+      // Only include hashes if type=2
+      if (type === 2) {
+        updateData.documentHash = documentHash;
+        updateData.signatureHash = signatureHash;
+      }
+      
       digitalSignature = await this.prisma.digitalSignature.update({
         where: { id: existingSignature.id },
-        data: {
-          signatureStampId: signatureStampId,
-          documentHash: documentHash,
-          signatureHash: signatureHash,
-          signatureStatus: 'VALID',
-          verifiedAt: new Date(),
-          signatureData: JSON.stringify({
-            stampName: signatureStamp.name,
-            stampImageUrl: signatureStamp.imageUrl,
-            appliedAt: new Date().toISOString(),
-            documentHash: documentHash,
-            versionNumber: latestVersion.versionNumber,
-            signatureAlgorithm: 'RSA-SHA256',
-          }),
-        },
+        data: updateData,
       });
       this.logger.log(`[applySignatureStamp] Updated digital signature ${digitalSignature.id}`);
     } else {
       this.logger.log(`[applySignatureStamp] No existing digital signature found, creating new one...`);
       // Create new digital signature
+      const createData: any = {
+        signerId: userId,
+        signatureStampId: signatureStampId,
+        documentVersionId: latestVersion.id,
+        signatureStatus: 'VALID',
+        verifiedAt: new Date(),
+        signatureData: JSON.stringify({
+          stampName: signatureStamp.name,
+          stampImageUrl: signatureStamp.imageUrl,
+          appliedAt: new Date().toISOString(),
+          versionNumber: latestVersion.versionNumber,
+          signatureAlgorithm: type === 2 ? 'RSA-SHA256' : 'STAMP_ONLY',
+          reason: reason || 'Document stamped',
+          type: type,
+        }),
+      };
+      
+      // Only include hashes if type=2
+      if (type === 2) {
+        createData.documentHash = documentHash;
+        createData.signatureHash = signatureHash;
+      }
+      
       digitalSignature = await this.prisma.digitalSignature.create({
-        data: {
-          signerId: userId,
-          signatureStampId: signatureStampId,
-          documentVersionId: latestVersion.id,
-          documentHash: documentHash,
-          signatureHash: signatureHash,
-          signatureStatus: 'VALID',
-          verifiedAt: new Date(),
-          signatureData: JSON.stringify({
-            stampName: signatureStamp.name,
-            stampImageUrl: signatureStamp.imageUrl,
-            appliedAt: new Date().toISOString(),
-            documentHash: documentHash,
-            versionNumber: latestVersion.versionNumber,
-            signatureAlgorithm: 'RSA-SHA256',
-          }),
-        },
+        data: createData,
       });
       this.logger.log(`[applySignatureStamp] Created new digital signature ${digitalSignature.id}`);
     }

@@ -77,7 +77,7 @@ export class SignatureStampsController {
   @ApiForbiddenResponse({ description: 'Insufficient permissions' })
   async findAll(
     @Query() query: GetSignaturesQueryDto,
-  ): Promise<{ signatures: SignatureStampWithCreator[]; total: number; page: number; limit: number }> {
+  ): Promise<{ stamps: SignatureStampWithCreator[]; total: number; page: number; limit: number }> {
     return this.signatureStampsService.findAll(query);
   }
 

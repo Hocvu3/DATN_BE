@@ -252,4 +252,28 @@ export class S3Service {
       throw error;
     }
   }
+
+  async uploadFileBuffer(
+    buffer: Buffer,
+    key: string,
+    contentType: string,
+  ): Promise<string> {
+    try {
+      const command = new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+        Body: buffer,
+        ContentType: contentType,
+      });
+
+      await this.s3Client.send(command);
+      const publicUrl = `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${key}`;
+      
+      this.logger.log(`Uploaded file buffer to S3 with key: ${key}`);
+      return publicUrl;
+    } catch (error) {
+      this.logger.error(`Failed to upload file buffer to S3: ${key}`, error);
+      throw error;
+    }
+  }
 }
