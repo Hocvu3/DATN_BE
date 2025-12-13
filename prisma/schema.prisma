@@ -307,7 +307,7 @@ model Signature {
   
   digitalSignatures DigitalSignature[] @relation("DigitalSignatureStamp")
 
-  @@map("signatures")
+  @@map("stamps")
 }
 
 // ===== ASSET MANAGEMENT =====

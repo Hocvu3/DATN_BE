@@ -37,10 +37,10 @@ import { ApplySignatureDto } from '../dto/apply-signature.dto';
 import type { Signature, DigitalSignature } from '@prisma/client';
 import type { SignatureStampWithCreator } from '../entities/signature-stamp.entity';
 
-@ApiTags('Signature Stamps')
+@ApiTags('Stamps')
 @ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('signature-stamps')
+@Controller('stamps')
 export class SignatureStampsController {
   constructor(private readonly signatureStampsService: SignatureStampsService) {}
 
