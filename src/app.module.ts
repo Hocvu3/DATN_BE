@@ -13,6 +13,7 @@ import { TagsModule } from './tags/tags.module';
 import { SignaturesModule } from './signatures/signatures.module';
 import { OcrModule } from './ocr/ocr.module';
 import { HealthModule } from './health/health.module';
+import { AuditLogsModule } from './audit-logs/audit-logs.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { HealthModule } from './health/health.module';
     SignaturesModule,
     OcrModule,
     HealthModule,
+    AuditLogsModule,
   ],
   controllers: [],
   providers: [],
