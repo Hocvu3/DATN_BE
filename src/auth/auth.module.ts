@@ -18,7 +18,7 @@ import { AuthController } from './auth.controller';
       imports: [ConfigModule],
       useFactory: () => {
         const secret = process.env.JWT_SECRET ?? 'dev_access_secret';
-        const expiresIn = process.env.JWT_ACCESS_EXPIRES ?? '60m';
+        const expiresIn = process.env.JWT_ACCESS_EXPIRES ?? '6h';
         return { secret, signOptions: { expiresIn } };
       },
       inject: [ConfigService],
