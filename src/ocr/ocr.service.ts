@@ -290,30 +290,44 @@ export class OcrService {
 
     try {
       // Enterprise-focused prompt for business documents
-      const prompt = `Bạn là trợ lý AI chuyên phân tích văn bản doanh nghiệp. Hãy đọc kỹ văn bản sau và tạo một bản tóm tắt chuyên nghiệp theo cấu trúc sau:
+      const prompt = `Bạn là trợ lý AI chuyên phân tích văn bản doanh nghiệp. Hãy đọc kỹ văn bản sau và tạo một bản tóm tắt CHI TIẾT, ĐẦY ĐỦ theo cấu trúc sau:
 
 **THÔNG TIN CHÍNH:**
-- Loại văn bản và mục đích
-- Các bên liên quan (nếu có)
-- Ngày tháng quan trọng
+- Loại văn bản và mục đích chính
+- Các bên liên quan (tổ chức, cá nhân, vai trò)
+- Ngày tháng quan trọng (ngày ban hành, hiệu lực, hết hạn)
+- Số văn bản, ký hiệu (nếu có)
 
-**NỘI DUNG CHÍNH:**
-- Các điểm quan trọng (3-5 điểm, dạng bullet points)
-- Số liệu, con số nổi bật (nếu có)
+**NỘI DUNG CHI TIẾT:**
+- Tóm tắt toàn bộ nội dung văn bản theo từng phần/mục
+- Các điểm quan trọng và điều khoản chính (liệt kê đầy đủ)
+- Số liệu, con số, tỷ lệ, phần trăm (ghi rõ đơn vị)
+- Các điều kiện, yêu cầu, tiêu chuẩn được nêu
+- Quyền lợi và trách nhiệm của các bên
 
 **HÀNH ĐỘNG YÊU CẦU:**
-- Các nhiệm vụ cần thực hiện
-- Deadline (nếu có)
-- Người phụ trách (nếu được nêu)
+- Chi tiết các nhiệm vụ cần thực hiện (từng bước cụ thể)
+- Thời hạn hoàn thành, deadline cho từng việc
+- Người/Bộ phận phụ trách (nếu được nêu rõ)
+- Quy trình phê duyệt (nếu có)
 
-**GHI CHÚ:**
-- Các điều khoản đặc biệt hoặc lưu ý quan trọng
+**CÁC ĐIỀU KHOẢN QUAN TRỌNG:**
+- Điều khoản pháp lý, hợp đồng đặc biệt
+- Điều kiện hủy bỏ, chấm dứt
+- Phạt, trách nhiệm khi vi phạm
+- Cơ chế giải quyết tranh chấp
+
+**GHI CHÚ VÀ LƯU Ý:**
+- Các lưu ý đặc biệt cần chú ý
+- Tài liệu, giấy tờ đính kèm
+- Thông tin liên hệ, hotline
+- Các trường hợp ngoại lệ
 
 Văn bản cần tóm tắt:
 
 ${text}
 
-Hãy trả lời bằng tiếng Việt, ngắn gọn, rõ ràng và tập trung vào thông tin quan trọng nhất cho quản lý doanh nghiệp.`;
+Hãy trả lời bằng tiếng Việt, CHI TIẾT, ĐẦY ĐỦ. Không bỏ sót thông tin quan trọng. Nếu văn bản dài, hãy tóm tắt từng phần một cách có hệ thống. Độ dài tóm tắt nên từ 500-1000 từ tùy theo độ phức tạp của văn bản.`;
 
       const requestBody = {
         anthropic_version: 'bedrock-2023-05-31',
