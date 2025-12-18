@@ -15,6 +15,7 @@ import {
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
+import { Public } from '../../auth/decorators/public.decorator';
 import { DocumentVersionsService } from '../services/document-versions.service';
 import type { CreateVersionDto, UpdateVersionDto } from '../services/document-versions.service';
 import { DocumentStatus } from '@prisma/client';
@@ -135,11 +136,23 @@ export class DocumentVersionsController {
   }
 
   /**
-   * Validate version integrity
+   * Validate version integrity (authenticated)
    */
   @Get(':versionId/validate')
   @Roles('ADMIN', 'MANAGER', 'EMPLOYEE')
   async validateVersion(
+    @Param('documentId') documentId: string,
+    @Param('versionId') versionId: string,
+  ) {
+    return this.documentVersionsService.validateVersion(documentId, versionId);
+  }
+
+  /**
+   * Validate version integrity (public - no auth required)
+   */
+  @Public()
+  @Get(':versionId/validate-public')
+  async validateVersionPublic(
     @Param('documentId') documentId: string,
     @Param('versionId') versionId: string,
   ) {
