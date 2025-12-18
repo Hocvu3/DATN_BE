@@ -826,24 +826,38 @@ export class DocumentService {
   async getDashboardStats(userId: string, userRole: string) {
     const prisma = this.documentRepository['prisma'];
 
-    // Get document statistics - count by latest version status
+    // Get all documents with their latest version
+    const allDocuments = await prisma.document.findMany({
+      select: {
+        id: true,
+        createdAt: true,
+        versions: {
+          select: { status: true },
+          orderBy: { versionNumber: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    const totalDocuments = allDocuments.length;
+    const draftDocuments = allDocuments.filter(d => d.versions[0]?.status === DocumentStatus.DRAFT).length;
+    const pendingDocuments = allDocuments.filter(d => d.versions[0]?.status === DocumentStatus.PENDING_APPROVAL).length;
+    const approvedDocuments = allDocuments.filter(d => d.versions[0]?.status === DocumentStatus.APPROVED).length;
+    const rejectedDocuments = allDocuments.filter(d => d.versions[0]?.status === DocumentStatus.REJECTED).length;
+    const archivedDocuments = allDocuments.filter(d => d.versions[0]?.status === DocumentStatus.ARCHIVED).length;
+
+    // Get user and department statistics
     const [
-      totalDocuments,
-      draftDocuments,
-      pendingDocuments,
-      approvedDocuments,
-      rejectedDocuments,
       totalUsers,
+      activeUsers,
+      inactiveUsers,
       totalDepartments,
       documentsThisMonth,
       documentsLastMonth,
     ] = await Promise.all([
-      prisma.document.count(),
-      prisma.documentVersion.count({ where: { status: DocumentStatus.DRAFT } }),
-      prisma.documentVersion.count({ where: { status: DocumentStatus.PENDING_APPROVAL } }),
-      prisma.documentVersion.count({ where: { status: DocumentStatus.APPROVED } }),
-      prisma.documentVersion.count({ where: { status: DocumentStatus.REJECTED } }),
+      prisma.user.count(),
       prisma.user.count({ where: { isActive: true } }),
+      prisma.user.count({ where: { isActive: false } }),
       prisma.department.count(),
       prisma.document.count({
         where: {
@@ -892,13 +906,43 @@ export class DocumentService {
       },
     });
 
-    // Get documents by status for chart
+    // Get documents by department
+    const departmentStats = await prisma.department.findMany({
+      select: {
+        id: true,
+        name: true,
+        _count: {
+          select: {
+            documents: true,
+          },
+        },
+      },
+    });
+
+    // Get documents by status for chart (only show non-zero)
     const documentsByStatus = [
-      { status: 'DRAFT', count: draftDocuments, color: '#8c8c8c' },
-      { status: 'PENDING_APPROVAL', count: pendingDocuments, color: '#faad14' },
-      { status: 'APPROVED', count: approvedDocuments, color: '#52c41a' },
-      { status: 'REJECTED', count: rejectedDocuments, color: '#ff4d4f' },
-    ];
+      { status: 'DRAFT', name: 'Draft', count: draftDocuments, color: '#8c8c8c' },
+      { status: 'PENDING_APPROVAL', name: 'Pending', count: pendingDocuments, color: '#faad14' },
+      { status: 'APPROVED', name: 'Approved', count: approvedDocuments, color: '#52c41a' },
+      { status: 'REJECTED', name: 'Rejected', count: rejectedDocuments, color: '#ff4d4f' },
+      { status: 'ARCHIVED', name: 'Archived', count: archivedDocuments, color: '#722ed1' },
+    ].filter(item => item.count > 0);
+
+    // Users by status
+    const usersByStatus = [
+      { status: 'ACTIVE', name: 'Active', count: activeUsers, color: '#52c41a' },
+      { status: 'INACTIVE', name: 'Inactive', count: inactiveUsers, color: '#ff4d4f' },
+    ].filter(item => item.count > 0);
+
+    // Get top 5 departments by document count
+    const topDepartments = departmentStats
+      .sort((a, b) => b._count.documents - a._count.documents)
+      .slice(0, 5)
+      .filter(d => d._count.documents > 0)
+      .map(d => ({
+        name: d.name,
+        count: d._count.documents,
+      }));
 
     // Get documents created per day for last 7 days
     const last7Days: Array<{ date: string; dayName: string; count: number }> = [];
@@ -925,19 +969,6 @@ export class DocumentService {
       });
     }
 
-    // Get documents by department
-    const departmentStats = await prisma.department.findMany({
-      select: {
-        id: true,
-        name: true,
-        _count: {
-          select: {
-            documents: true,
-          },
-        },
-      },
-    });
-
     // Calculate growth percentage
     const growthPercentage = documentsLastMonth > 0
       ? Math.round(((documentsThisMonth - documentsLastMonth) / documentsLastMonth) * 100)
@@ -953,6 +984,8 @@ export class DocumentService {
         growthPercentage,
       },
       documentsByStatus,
+      usersByStatus,
+      topDepartments,
       documentsPerDay: last7Days,
       departmentStats: departmentStats.map(d => ({
         id: d.id,
