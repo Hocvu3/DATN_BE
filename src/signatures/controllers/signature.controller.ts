@@ -521,6 +521,35 @@ export class SignatureController {
     return this.signatureService.revokeSignature(id, req.user.userId, req.user.role);
   }
 
+  @Put('requests/:id/reopen')
+  @Roles('ADMIN', 'MANAGER')
+  @ApiOperation({
+    summary: 'Reopen cancelled signature request',
+    description:
+      'Reopen a cancelled signature request. Changes status from CANCELLED back to PENDING.',
+  })
+  @ApiParam({ name: 'id', description: 'Signature request ID' })
+  @ApiOkResponse({
+    description: 'Signature request reopened successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        status: { type: 'string', example: 'PENDING' },
+        message: { type: 'string', example: 'Signature request reopened successfully' },
+      },
+    },
+  })
+  @ApiBadRequestResponse({ description: 'Request is not cancelled or cannot be reopened' })
+  @ApiNotFoundResponse({ description: 'Signature request not found' })
+  @ApiForbiddenResponse({ description: 'Insufficient permissions to reopen this request' })
+  async reopenSignatureRequest(
+    @Req() req: { user: { userId: string; role: string } },
+    @Param('id') id: string,
+  ): Promise<{ id: string; status: string; message: string }> {
+    return this.signatureService.reopenSignatureRequest(id, req.user.userId, req.user.role);
+  }
+
   @Get('signatures/:id')
   @ApiOperation({
     summary: 'Get digital signature by ID',

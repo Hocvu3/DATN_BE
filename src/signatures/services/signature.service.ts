@@ -20,7 +20,7 @@ import type {
   SignatureRequestWithDetails,
   SignatureStats,
 } from '../entities/signature.entity';
-import { SignatureType, SignatureStatus, Prisma } from '@prisma/client';
+import { SignatureType, SignatureStatus, DocumentStatus, Prisma } from '@prisma/client';
 
 @Injectable()
 export class SignatureService {
@@ -292,16 +292,43 @@ export class SignatureService {
           this.logger.log(`[signDocument] Created new digital signature ${digitalSignature.id}`);
         }
 
-        // Update signature request status
-        await this.signatureRepository.updateSignatureRequest(
-          requestId,
-          {
-            status: SignatureStatus.SIGNED,
-            signedAt: new Date(),
+        // Find or create signature request for this document version
+        let signatureRequest = await tx.signatureRequest.findFirst({
+          where: {
+            documentVersionId: documentVersion.id,
           },
-          tx,
-        );
-        this.logger.log(`[signDocument] Updated signature request status to SIGNED`);
+        });
+
+        if (signatureRequest) {
+          // Update existing signature request status
+          await this.signatureRepository.updateSignatureRequest(
+            signatureRequest.id,
+            {
+              status: SignatureStatus.SIGNED,
+              signedAt: new Date(),
+            },
+            tx,
+          );
+          this.logger.log(`[signDocument] Updated existing signature request ${signatureRequest.id} status to SIGNED`);
+        } else {
+          // Create new signature request if doesn't exist
+          this.logger.log(`[signDocument] No signature request found, creating new one...`);
+          const expiresAt = new Date();
+          expiresAt.setDate(expiresAt.getDate() + 30);
+          
+          signatureRequest = await tx.signatureRequest.create({
+            data: {
+              documentVersion: { connect: { id: documentVersion.id } },
+              requester: { connect: { id: signerId } },
+              signatureType: request.signatureType,
+              expiresAt: expiresAt,
+              status: SignatureStatus.SIGNED,
+              signedAt: new Date(),
+              reason: 'Auto-created during signing',
+            },
+          });
+          this.logger.log(`[signDocument] Created new signature request ${signatureRequest.id}`);
+        }
 
         // Update document version status to APPROVED (similar to apply stamp logic)
         await tx.documentVersion.update({
@@ -451,6 +478,8 @@ export class SignatureService {
       throw new ForbiddenException('Only administrators can approve signature requests');
     }
 
+    // Simply update status to SIGNED without creating digital signature
+    // Digital signature will be created when user applies stamp or signs digitally
     return this.updateSignatureStatus(
       id,
       { status: SignatureStatus.SIGNED as any },
@@ -469,11 +498,59 @@ export class SignatureService {
       throw new ForbiddenException('Only administrators can reject signature requests');
     }
 
-    return this.updateSignatureStatus(
-      id,
-      { status: SignatureStatus.CANCELLED as any, reason },
-      userId,
-      userRole,
+    this.logger.log(`[rejectSignatureRequest] Starting reject process for request ${id} by user ${userId}`);
+
+    const request = await this.signatureRepository.findSignatureRequestById(id);
+    if (!request) {
+      throw new NotFoundException(`Signature request with ID '${id}' not found`);
+    }
+
+    // Check if request was signed
+    const wasSigned = request.status === 'SIGNED';
+
+    return this.prisma.runWithUserContext(
+      { userId: userId, role: userRole, departmentId: null },
+      async tx => {
+        // If request was signed, delete any digital signatures
+        if (wasSigned) {
+          const digitalSignatures = await tx.digitalSignature.findMany({
+            where: {
+              documentVersionId: request.documentVersionId,
+            },
+          });
+
+          if (digitalSignatures.length > 0) {
+            this.logger.log(`[rejectSignatureRequest] Deleting ${digitalSignatures.length} digital signature(s)...`);
+            await tx.digitalSignature.deleteMany({
+              where: {
+                documentVersionId: request.documentVersionId,
+              },
+            });
+            this.logger.log(`[rejectSignatureRequest] Digital signatures deleted`);
+          }
+
+          // Update document version status back to PENDING_APPROVAL
+          await tx.documentVersion.update({
+            where: { id: request.documentVersionId },
+            data: { status: DocumentStatus.PENDING_APPROVAL },
+          });
+          this.logger.log(`[rejectSignatureRequest] Updated document version status to PENDING_APPROVAL`);
+        }
+
+        // Update signature request status to CANCELLED with reason
+        const updatedRequest = await this.signatureRepository.updateSignatureRequest(
+          id,
+          {
+            status: SignatureStatus.CANCELLED,
+            reason: reason,
+            signedAt: null,
+          },
+          tx,
+        );
+        this.logger.log(`[rejectSignatureRequest] Updated signature request status to CANCELLED`);
+
+        return updatedRequest;
+      },
     );
   }
 
@@ -582,6 +659,53 @@ export class SignatureService {
           id: requestId,
           status: 'PENDING',
           message: 'Signature revoked successfully',
+        };
+      },
+    );
+  }
+
+  async reopenSignatureRequest(
+    requestId: string,
+    userId: string,
+    userRole: string,
+  ): Promise<{ id: string; status: string; message: string }> {
+    this.logger.log(`[reopenSignatureRequest] Starting reopen process for request ${requestId} by user ${userId}`);
+
+    // Find the signature request
+    const request = await this.signatureRepository.findSignatureRequestById(requestId);
+    if (!request) {
+      throw new NotFoundException(`Signature request with ID '${requestId}' not found`);
+    }
+
+    // Check permissions - only ADMIN and MANAGER can reopen
+    if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
+      throw new ForbiddenException('Only admins and managers can reopen cancelled requests');
+    }
+
+    // Check if request is cancelled
+    if (request.status !== 'CANCELLED') {
+      throw new BadRequestException('Only cancelled requests can be reopened');
+    }
+
+    this.logger.log(`[reopenSignatureRequest] Request is CANCELLED, proceeding with reopen...`);
+
+    return this.prisma.runWithUserContext(
+      { userId: userId, role: userRole, departmentId: null },
+      async tx => {
+        // Update signature request status back to PENDING
+        await this.signatureRepository.updateSignatureRequest(
+          requestId,
+          {
+            status: SignatureStatus.PENDING,
+          },
+          tx,
+        );
+        this.logger.log(`[reopenSignatureRequest] Updated signature request status to PENDING`);
+
+        return {
+          id: requestId,
+          status: 'PENDING',
+          message: 'Signature request reopened successfully',
         };
       },
     );

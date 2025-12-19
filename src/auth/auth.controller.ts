@@ -26,7 +26,8 @@ class LoginDto {
   password!: string;
 }
 class RefreshDto {
-  userId!: string;
+  @IsString()
+  @IsNotEmpty()
   refreshToken!: string;
 }
 class ForgotDto {
@@ -146,10 +147,10 @@ export class AuthController {
   @Post('refresh')
   @ApiOperation({ summary: 'Refresh access token' })
   @ApiBody({
-    schema: { properties: { userId: { type: 'string' }, refreshToken: { type: 'string' } } },
+    schema: { properties: { refreshToken: { type: 'string' } } },
   })
   async refresh(@Body() dto: RefreshDto) {
-    return this.authService.refresh(dto.userId, dto.refreshToken);
+    return this.authService.refresh(dto.refreshToken);
   }
 
   @Public()

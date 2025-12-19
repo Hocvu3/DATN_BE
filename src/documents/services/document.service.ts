@@ -839,9 +839,14 @@ export class DocumentService {
       },
     });
 
+    const pendingDocuments = await prisma.signatureRequest.count({
+      where: {
+        status: 'PENDING',
+      },
+    });
+
     const totalDocuments = allDocuments.length;
     const draftDocuments = allDocuments.filter(d => d.versions[0]?.status === DocumentStatus.DRAFT).length;
-    const pendingDocuments = allDocuments.filter(d => d.versions[0]?.status === DocumentStatus.PENDING_APPROVAL).length;
     const approvedDocuments = allDocuments.filter(d => d.versions[0]?.status === DocumentStatus.APPROVED).length;
     const rejectedDocuments = allDocuments.filter(d => d.versions[0]?.status === DocumentStatus.REJECTED).length;
     const archivedDocuments = allDocuments.filter(d => d.versions[0]?.status === DocumentStatus.ARCHIVED).length;

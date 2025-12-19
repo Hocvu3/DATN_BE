@@ -11,6 +11,8 @@ import {
   HttpCode,
   HttpStatus,
   Req,
+  NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
@@ -19,11 +21,19 @@ import { Public } from '../../auth/decorators/public.decorator';
 import { DocumentVersionsService } from '../services/document-versions.service';
 import type { CreateVersionDto, UpdateVersionDto } from '../services/document-versions.service';
 import { DocumentStatus } from '@prisma/client';
+import { SignatureService } from '../../signatures/services/signature.service';
+import { SignatureStampsService } from '../../signatures/services/signature-stamps.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Controller('documents/:documentId/versions')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class DocumentVersionsController {
-  constructor(private readonly documentVersionsService: DocumentVersionsService) {}
+  constructor(
+    private readonly documentVersionsService: DocumentVersionsService,
+    private readonly signatureService: SignatureService,
+    private readonly signatureStampsService: SignatureStampsService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   /**
    * Get all versions for a document
@@ -157,5 +167,163 @@ export class DocumentVersionsController {
     @Param('versionId') versionId: string,
   ) {
     return this.documentVersionsService.validateVersion(documentId, versionId);
+  }
+
+  /**
+   * Approve document version
+   */
+  @Post(':versionId/approve')
+  @Roles('ADMIN', 'MANAGER')
+  async approveVersion(
+    @Param('documentId') documentId: string,
+    @Param('versionId') versionId: string,
+    @Body() body: { signatureStampId?: string; reason?: string; type?: number },
+    @Req() req: { user: { userId: string; role: string } },
+  ) {
+    const version = await this.prisma.documentVersion.findUnique({
+      where: { id: versionId },
+      include: { document: true },
+    });
+
+    if (!version) {
+      throw new NotFoundException('Document version not found');
+    }
+
+    if (version.documentId !== documentId) {
+      throw new BadRequestException('Version does not belong to this document');
+    }
+
+    let result: any;
+
+    // If signatureStampId is provided, apply stamp and create/update signature request
+    if (body.signatureStampId) {
+      result = await this.signatureStampsService.applySignatureStamp(
+        {
+          documentId: documentId,
+          signatureStampId: body.signatureStampId,
+          reason: body.reason || 'Document version approved',
+          type: body.type || 2, // Default to type 2 for hash generation
+        },
+        req.user.userId,
+        req.user.role,
+      );
+
+      return {
+        success: true,
+        message: 'Document version approved with signature stamp',
+        data: {
+          documentId,
+          versionId,
+          digitalSignature: result,
+        },
+      };
+    } else {
+      // Just approve without stamp - find or create signature request
+      let signatureRequest = await this.prisma.signatureRequest.findFirst({
+        where: {
+          documentVersionId: versionId,
+        },
+      });
+
+      if (signatureRequest) {
+        // Update existing signature request
+        signatureRequest = await this.prisma.signatureRequest.update({
+          where: { id: signatureRequest.id },
+          data: {
+            status: 'SIGNED',
+            signedAt: new Date(),
+          },
+        });
+      } else {
+        // Create new signature request
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 30);
+        
+        signatureRequest = await this.prisma.signatureRequest.create({
+          data: {
+            documentVersion: { connect: { id: versionId } },
+            requester: { connect: { id: req.user.userId } },
+            signatureType: 'DIGITAL',
+            expiresAt: expiresAt,
+            status: 'SIGNED',
+            signedAt: new Date(),
+            reason: body.reason || 'Document version approved',
+          },
+        });
+      }
+
+      // Update version status to APPROVED
+      await this.prisma.documentVersion.update({
+        where: { id: versionId },
+        data: { status: 'APPROVED' },
+      });
+
+      return {
+        success: true,
+        message: 'Document version approved successfully',
+        data: {
+          documentId,
+          versionId,
+          signatureRequest,
+        },
+      };
+    }
+  }
+
+  /**
+   * Reject document version
+   */
+  @Post(':versionId/reject')
+  @Roles('ADMIN', 'MANAGER')
+  async rejectVersion(
+    @Param('documentId') documentId: string,
+    @Param('versionId') versionId: string,
+    @Body() body: { reason: string },
+    @Req() req: { user: { userId: string; role: string } },
+  ) {
+    const version = await this.prisma.documentVersion.findUnique({
+      where: { id: versionId },
+      include: { document: true },
+    });
+
+    if (!version) {
+      throw new NotFoundException('Document version not found');
+    }
+
+    if (version.documentId !== documentId) {
+      throw new BadRequestException('Version does not belong to this document');
+    }
+
+    // Find signature request for this version
+    const signatureRequest = await this.prisma.signatureRequest.findFirst({
+      where: {
+        documentVersionId: versionId,
+      },
+    });
+
+    if (signatureRequest) {
+      // Use the reject logic from signature service
+      await this.signatureService.rejectSignatureRequest(
+        signatureRequest.id,
+        body.reason,
+        req.user.userId,
+        req.user.role,
+      );
+    } else {
+      // No signature request exists, just update version status to PENDING_APPROVAL
+      await this.prisma.documentVersion.update({
+        where: { id: versionId },
+        data: { status: DocumentStatus.PENDING_APPROVAL },
+      });
+    }
+
+    return {
+      success: true,
+      message: 'Document version rejected successfully',
+      data: {
+        documentId,
+        versionId,
+      },
+    };
   }
 }

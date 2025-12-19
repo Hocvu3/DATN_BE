@@ -10,6 +10,7 @@ import {
   Req,
   BadRequestException,
   Logger,
+  Param,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { 
@@ -20,6 +21,7 @@ import {
   ApiQuery,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
+  ApiParam,
 } from '@nestjs/swagger';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -27,6 +29,9 @@ import { OcrService } from './ocr.service';
 import { OcrRequestDto } from './dto/ocr-request.dto';
 import { AnalyzeDocumentDto, GetDocumentsForOcrDto } from './dto/analyze-document.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { SignatureService } from '../signatures/services/signature.service';
+import { SignatureStampsService } from '../signatures/services/signature-stamps.service';
+import { DocumentStatus } from '@prisma/client';
 
 @ApiTags('AI OCR & Document Analysis')
 @Controller('ocr')
@@ -38,6 +43,8 @@ export class OcrController {
   constructor(
     private readonly ocrService: OcrService,
     private readonly prisma: PrismaService,
+    private readonly signatureService: SignatureService,
+    private readonly signatureStampsService: SignatureStampsService,
   ) {}
 
   @Get('documents')
@@ -307,5 +314,201 @@ export class OcrController {
       message: 'Supported languages retrieved successfully',
       data: languages,
     };
+  }
+
+  @Post('documents/:documentId/approve')
+  @Roles('ADMIN', 'MANAGER')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Approve document after AI analysis (Admin/Manager only)',
+    description: 'Approve document and optionally apply digital signature with stamp',
+  })
+  @ApiParam({ name: 'documentId', description: 'Document ID', type: 'string' })
+  @ApiOkResponse({ description: 'Document approved successfully' })
+  @ApiBadRequestResponse({ description: 'Invalid document or approval failed' })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized access' })
+  async approveDocument(
+    @Req() req: { user: { userId: string; role: string } },
+    @Param('documentId') documentId: string,
+    @Body() body: { signatureStampId?: string; reason?: string; type?: number },
+  ) {
+    try {
+      // Get document and its latest version
+      const document = await this.prisma.document.findUnique({
+        where: { id: documentId },
+        include: {
+          versions: {
+            orderBy: {
+              versionNumber: 'desc',
+            },
+            take: 1,
+          },
+        },
+      });
+
+      if (!document) {
+        throw new BadRequestException('Document not found');
+      }
+
+      const latestVersion = document.versions[0];
+      if (!latestVersion) {
+        throw new BadRequestException('Document has no versions');
+      }
+
+      let result: any;
+
+      // If signatureStampId is provided, apply stamp and create/update signature request
+      if (body.signatureStampId) {
+        result = await this.signatureStampsService.applySignatureStamp(
+          {
+            documentId: documentId,
+            signatureStampId: body.signatureStampId,
+            reason: body.reason || 'Approved after AI analysis',
+            type: body.type || 2, // Default to type 2 for hash generation
+          },
+          req.user.userId,
+          req.user.role,
+        );
+
+        return {
+          success: true,
+          message: 'Document approved with signature stamp',
+          data: {
+            documentId,
+            versionId: latestVersion.id,
+            digitalSignature: result,
+          },
+        };
+      } else {
+        // Just approve without stamp - find or create signature request
+        let signatureRequest = await this.prisma.signatureRequest.findFirst({
+          where: {
+            documentVersionId: latestVersion.id,
+          },
+        });
+
+        if (signatureRequest) {
+          // Update existing signature request
+          signatureRequest = await this.prisma.signatureRequest.update({
+            where: { id: signatureRequest.id },
+            data: {
+              status: 'SIGNED',
+              signedAt: new Date(),
+            },
+          });
+        } else {
+          // Create new signature request
+          const expiresAt = new Date();
+          expiresAt.setDate(expiresAt.getDate() + 30);
+          
+          signatureRequest = await this.prisma.signatureRequest.create({
+            data: {
+              documentVersion: { connect: { id: latestVersion.id } },
+              requester: { connect: { id: req.user.userId } },
+              signatureType: 'DIGITAL',
+              expiresAt: expiresAt,
+              status: 'SIGNED',
+              signedAt: new Date(),
+              reason: body.reason || 'Approved after AI analysis',
+            },
+          });
+        }
+
+        // Update version status to APPROVED
+        await this.prisma.documentVersion.update({
+          where: { id: latestVersion.id },
+          data: { status: 'APPROVED' },
+        });
+
+        return {
+          success: true,
+          message: 'Document approved successfully',
+          data: {
+            documentId,
+            versionId: latestVersion.id,
+            signatureRequest,
+          },
+        };
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Document approval failed';
+      throw new BadRequestException(errorMessage);
+    }
+  }
+
+  @Post('documents/:documentId/reject')
+  @Roles('ADMIN', 'MANAGER')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Reject document after AI analysis (Admin/Manager only)',
+    description: 'Reject document and update/delete signature request and digital signatures',
+  })
+  @ApiParam({ name: 'documentId', description: 'Document ID', type: 'string' })
+  @ApiOkResponse({ description: 'Document rejected successfully' })
+  @ApiBadRequestResponse({ description: 'Invalid document or rejection failed' })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized access' })
+  async rejectDocument(
+    @Req() req: { user: { userId: string; role: string } },
+    @Param('documentId') documentId: string,
+    @Body() body: { reason: string },
+  ) {
+    try {
+      // Get document and its latest version
+      const document = await this.prisma.document.findUnique({
+        where: { id: documentId },
+        include: {
+          versions: {
+            orderBy: {
+              versionNumber: 'desc',
+            },
+            take: 1,
+          },
+        },
+      });
+
+      if (!document) {
+        throw new BadRequestException('Document not found');
+      }
+
+      const latestVersion = document.versions[0];
+      if (!latestVersion) {
+        throw new BadRequestException('Document has no versions');
+      }
+
+      // Find signature request for this version
+      const signatureRequest = await this.prisma.signatureRequest.findFirst({
+        where: {
+          documentVersionId: latestVersion.id,
+        },
+      });
+
+      if (signatureRequest) {
+        // Use the reject logic from signature service
+        await this.signatureService.rejectSignatureRequest(
+          signatureRequest.id,
+          body.reason,
+          req.user.userId,
+          req.user.role,
+        );
+      } else {
+        // No signature request exists, just update version status to PENDING_APPROVAL
+        await this.prisma.documentVersion.update({
+          where: { id: latestVersion.id },
+          data: { status: DocumentStatus.PENDING_APPROVAL },
+        });
+      }
+
+      return {
+        success: true,
+        message: 'Document rejected successfully',
+        data: {
+          documentId,
+          versionId: latestVersion.id,
+        },
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Document rejection failed';
+      throw new BadRequestException(errorMessage);
+    }
   }
 }

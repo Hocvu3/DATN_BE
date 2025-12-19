@@ -94,6 +94,122 @@ export class SignatureStampsController {
     return this.signatureStampsService.getActiveSignatures();
   }
 
+  @Get('requests')
+  @ApiOperation({
+    summary: 'Get signature requests for stamping',
+    description: 'Retrieve all documents with pending signature requests that need stamps to be applied.',
+  })
+  @ApiOkResponse({
+    description: 'Signature requests retrieved successfully',
+  })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+  async getSignatureRequests(
+    @Req() req: { user: { userId: string; role: string } },
+    @Query() query: { page?: number; limit?: number; status?: string },
+  ) {
+    const page = Number(query.page) || 1;
+    const limit = Number(query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Build where clause
+    const where: any = {};
+    
+    if (query.status) {
+      where.status = query.status;
+    }
+
+    // Get signature requests with document details
+    const [requests, total] = await Promise.all([
+      this.signatureStampsService['prisma'].signatureRequest.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: {
+          requestedAt: 'desc',
+        },
+        include: {
+          documentVersion: {
+            include: {
+              document: {
+                include: {
+                  creator: {
+                    select: {
+                      id: true,
+                      email: true,
+                      username: true,
+                      firstName: true,
+                      lastName: true,
+                    },
+                  },
+                  tags: {
+                    select: {
+                      tag: {
+                        select: {
+                          id: true,
+                          name: true,
+                          color: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          requester: {
+            select: {
+              id: true,
+              email: true,
+              username: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      }),
+      this.signatureStampsService['prisma'].signatureRequest.count({ where }),
+    ]);
+
+    // Format response
+    const formattedRequests = requests.map((req) => ({
+      id: req.id,
+      status: req.status,
+      signatureType: req.signatureType,
+      requestedAt: req.requestedAt,
+      signedAt: req.signedAt,
+      expiresAt: req.expiresAt,
+      reason: req.reason,
+      documentVersion: {
+        id: req.documentVersion.id,
+        versionNumber: req.documentVersion.versionNumber,
+        status: req.documentVersion.status,
+        s3Key: req.documentVersion.s3Key,
+        s3Url: req.documentVersion.s3Url,
+      },
+      document: {
+        id: req.documentVersion.document.id,
+        title: req.documentVersion.document.title,
+        documentNumber: req.documentVersion.document.documentNumber,
+        securityLevel: req.documentVersion.document.securityLevel,
+        creator: req.documentVersion.document.creator,
+        tags: req.documentVersion.document.tags.map((t) => t.tag),
+      },
+      requester: req.requester,
+    }));
+
+    return {
+      success: true,
+      message: 'Signature requests retrieved successfully',
+      data: {
+        requests: formattedRequests,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
   @Get(':id')
   @Roles('ADMIN')
   @ApiOperation({

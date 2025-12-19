@@ -342,6 +342,43 @@ export class SignatureStampsService {
       this.logger.log(`[applySignatureStamp] Created new digital signature ${digitalSignature.id}`);
     }
 
+    // Find or create signature request for this document version
+    let signatureRequest = await this.prisma.signatureRequest.findFirst({
+      where: {
+        documentVersionId: latestVersion.id,
+      },
+    });
+
+    if (signatureRequest) {
+      // Update existing signature request status
+      await this.prisma.signatureRequest.update({
+        where: { id: signatureRequest.id },
+        data: {
+          status: 'SIGNED',
+          signedAt: new Date(),
+        },
+      });
+      this.logger.log(`[applySignatureStamp] Updated existing signature request ${signatureRequest.id} status to SIGNED`);
+    } else {
+      // Create new signature request if doesn't exist
+      this.logger.log(`[applySignatureStamp] No signature request found, creating new one...`);
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+      
+      signatureRequest = await this.prisma.signatureRequest.create({
+        data: {
+          documentVersion: { connect: { id: latestVersion.id } },
+          requester: { connect: { id: userId } },
+          signatureType: 'DIGITAL',
+          expiresAt: expiresAt,
+          status: 'SIGNED',
+          signedAt: new Date(),
+          reason: reason || 'Auto-created during stamp application',
+        },
+      });
+      this.logger.log(`[applySignatureStamp] Created new signature request ${signatureRequest.id}`);
+    }
+
     // Update version status to APPROVED
     await this.prisma.documentVersion.update({
       where: { id: latestVersion.id },

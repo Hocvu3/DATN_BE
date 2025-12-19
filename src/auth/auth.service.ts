@@ -115,19 +115,28 @@ export class AuthService {
     await this.usersService.clearRefreshToken(userId);
   }
 
-  async refresh(userId: string, refreshToken: string) {
-    const user = await this.usersService.findById(userId);
-    if (!user || !user.refreshTokenHash) throw new UnauthorizedException('Invalid refresh token');
-    // verify token signature/expiry
+  async refresh(refreshToken: string) {
+    // Verify and decode the refresh token to get userId
+    let decoded: any;
     try {
-      this.jwtService.verify(refreshToken, { secret: this.refreshSecret });
+      decoded = this.jwtService.verify(refreshToken, { secret: this.refreshSecret });
     } catch {
       throw new UnauthorizedException('Invalid refresh token');
     }
-    // compare hash
+
+    const userId = decoded.sub;
+    if (!userId) {
+      throw new UnauthorizedException('Invalid refresh token payload');
+    }
+
+    const user = await this.usersService.findById(userId);
+    if (!user || !user.refreshTokenHash) throw new UnauthorizedException('Invalid refresh token');
+    
+    // Compare hash
     const storedHash = user.refreshTokenHash;
     const valid = await this.usersService.validatePassword(refreshToken, storedHash);
     if (!valid) throw new UnauthorizedException('Invalid refresh token');
+    
     const accessToken = this.signAccessToken(user);
     const nextRefreshToken = this.signRefreshToken(user);
     await this.usersService.setRefreshToken(user.id, nextRefreshToken);
