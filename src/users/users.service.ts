@@ -118,7 +118,8 @@ export class UsersService {
                 tags: { include: { tag: true } },
                 creator: { select: { id: true, email: true, firstName: true, lastName: true } },
               },
-            },          },
+            },
+          },
         },
         auditLogs: {
           include: {
@@ -336,7 +337,8 @@ export class UsersService {
             s3Url: data.s3Url,
             contentType: data.contentType,
             sizeBytes: data.sizeBytes ? data.sizeBytes.toString() : null,
-            uploadedBy: { connect: { id: data.uploadedById } },          },
+            uploadedBy: { connect: { id: data.uploadedById } },
+          },
         });
       },
     );
@@ -466,7 +468,11 @@ export class UsersService {
 
     // Filter by department ID (preferred) or department name
     if (query.departmentId) {
-      where.departmentId = query.departmentId;
+      if (query.departmentId === 'null') {
+        where.departmentId = null;
+      } else {
+        where.departmentId = query.departmentId;
+      }
     } else if (query.department) {
       where.department = { name: { equals: query.department, mode: 'insensitive' } };
     }
@@ -624,7 +630,7 @@ export class UsersService {
     await this.prisma.$transaction(async tx => {
       // Delete all audit logs related to this user first
       await tx.$executeRawUnsafe(`DELETE FROM audit_logs WHERE user_id = '${id}'`);
-      
+
       // Delete user without audit context to avoid trigger creating new audit logs
       await tx.$executeRawUnsafe(`DELETE FROM users WHERE id = '${id}'`);
     });

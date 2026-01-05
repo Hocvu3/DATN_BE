@@ -10,7 +10,7 @@ import type { Document, DocumentVersion, Asset, Comment, Prisma } from '@prisma/
 
 @Injectable()
 export class DocumentRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   // ===== DOCUMENT CRUD =====
   async create(data: Prisma.DocumentCreateInput): Promise<DocumentEntity> {
@@ -33,24 +33,27 @@ export class DocumentRepository {
     });
   }
 
-  async findById(id: string): Promise<DocumentEntity | null> {
-    return this.prisma.document.findUnique({
-      where: { id },
-      include: {
-        creator: { include: { role: true, department: true , avatar: true } },
-        approver: true,
-        department: true,
-        versions: true,
-        assets: { where: { isCover: false } },
-        tags: { include: { tag: true } },
-        comments: {
-          include: {
-            author: { select: { id: true, email: true, firstName: true, lastName: true } },
-          },
+  async findById(id: string, options?: { include?: Prisma.DocumentInclude }): Promise<DocumentEntity | null> {
+    const include = options?.include || {
+      creator: { include: { role: true, department: true, avatar: true } },
+      approver: true,
+      department: true,
+      versions: true,
+      assets: { where: { isCover: false } },
+      tags: { include: { tag: true } },
+      comments: {
+        include: {
+          author: { select: { id: true, email: true, firstName: true, lastName: true } },
         },
-        auditLogs: true,
       },
+      auditLogs: true,
+    };
+
+    const result = await this.prisma.document.findUnique({
+      where: { id },
+      include,
     });
+    return result as unknown as DocumentEntity | null;
   }
 
   async findMany(params: {

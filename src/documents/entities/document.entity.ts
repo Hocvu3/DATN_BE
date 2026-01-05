@@ -14,11 +14,13 @@ export interface DocumentEntity extends Document {
   creator: User;
   approver?: User | null;
   department?: Department | null;
-  versions: DocumentVersion[];
+  versions: (DocumentVersion & { creator?: User | null })[];
   assets: Asset[];
   cover?: Asset | null;
   tags: Array<{
     id: string;
+    tagId?: string;
+    documentId?: string;
     tag: Tag;
   }>;
   comments: Array<{

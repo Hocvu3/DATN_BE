@@ -144,9 +144,15 @@ export class ManagerController {
         throw new UnauthorizedException('You can only update users in your department');
       }
 
-      // Prevent managers from changing role or department
-      if (updateUserDto.roleId || updateUserDto.departmentId) {
-        throw new BadRequestException('Managers cannot change user roles or departments');
+      // Managers can remove users from their department (set to null) but not assign to other departments
+      // Managers can change isActive, firstName, lastName but not roleId
+      if (updateUserDto.roleId) {
+        throw new BadRequestException('Managers cannot change user roles');
+      }
+      
+      // Allow setting department to null (removing from department), but not to another department
+      if (updateUserDto.departmentId !== undefined && updateUserDto.departmentId !== null && updateUserDto.departmentId !== manager.departmentId) {
+        throw new BadRequestException('Managers can only remove users from their department, not assign to other departments');
       }
 
       const updatedUser = await this.usersService.updateUser(id, updateUserDto);

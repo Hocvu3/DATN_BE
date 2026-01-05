@@ -13,6 +13,7 @@ import {
     NotFoundException,
     UnauthorizedException,
     ConflictException,
+    Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse, ApiCreatedResponse, ApiParam, ApiBody, ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -77,10 +78,10 @@ export class DepartmentsController {
 
         const departments = await this.prisma.department.findMany({
             where: whereClause,
-            select: { 
-                id: true, 
-                name: true, 
-                description: true, 
+            select: {
+                id: true,
+                name: true,
+                description: true,
                 isActive: true,
                 _count: {
                     select: {
@@ -105,6 +106,66 @@ export class DepartmentsController {
         return {
             message: 'Departments retrieved successfully',
             departments: transformedDepartments,
+        };
+    }
+
+    @Get('me')
+    @ApiOperation({ summary: 'Get current user\'s department info' })
+    @ApiOkResponse({
+        description: 'Current user\'s department retrieved successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                message: { type: 'string', example: 'Current user\'s department retrieved successfully' },
+                department: {
+                    type: 'object',
+                    properties: {
+                        id: { type: 'string', example: 'dept-it' },
+                        name: { type: 'string', example: 'IT Department' },
+                        description: { type: 'string', example: 'Information Technology Department' },
+                        isActive: { type: 'boolean', example: true },
+                        createdAt: { type: 'string', format: 'date-time' },
+                        updatedAt: { type: 'string', format: 'date-time' },
+                    },
+                },
+            },
+        },
+    })
+    async getMyDepartment(@Req() req) {
+        const userId = req.user.userId; // JWT payload uses 'userId' not 'id'
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                department: {
+                    select: {
+                        id: true,
+                        name: true,
+                        description: true,
+                        isActive: true,
+                        createdAt: true,
+                        updatedAt: true,
+                        _count: {
+                            select: {
+                                users: true,
+                                documents: true,
+                            },
+                        },
+                    },
+                },
+            },
+        });
+
+        if (!user || !user.department) {
+            throw new NotFoundException('User is not assigned to a department or department not found');
+        }
+
+        return {
+            message: 'Current user\'s department retrieved successfully',
+            data: {
+                ...user.department,
+                memberCount: user.department._count.users,
+                documentCount: user.department._count.documents,
+            },
         };
     }
 

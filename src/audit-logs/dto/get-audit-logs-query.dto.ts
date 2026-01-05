@@ -42,6 +42,21 @@ export class GetAuditLogsQueryDto {
   @IsString()
   ipAddress?: string;
 
+  @ApiPropertyOptional({ description: 'Filter by department ID' })
+  @IsOptional()
+  @IsString()
+  departmentId?: string;
+
+  @ApiPropertyOptional({ 
+    description: 'Filter by user type: 0 = All (default), 1 = Manager, 2 = Employee', 
+    enum: [0, 1, 2],
+    default: 0 
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  userType?: number = 0;
+
   @ApiPropertyOptional({ description: 'Start date (ISO 8601 format)' })
   @IsOptional()
   @IsDateString()
@@ -57,19 +72,19 @@ export class GetAuditLogsQueryDto {
   @IsString()
   search?: string;
 
-  @ApiPropertyOptional({ 
-    description: 'Sort field', 
+  @ApiPropertyOptional({
+    description: 'Sort field',
     enum: ['timestamp', 'action', 'resource', 'userId'],
-    default: 'timestamp' 
+    default: 'timestamp'
   })
   @IsOptional()
   @IsString()
   sortBy?: string = 'timestamp';
 
-  @ApiPropertyOptional({ 
-    description: 'Sort order', 
+  @ApiPropertyOptional({
+    description: 'Sort order',
     enum: ['asc', 'desc'],
-    default: 'desc' 
+    default: 'desc'
   })
   @IsOptional()
   @IsIn(['asc', 'desc'])

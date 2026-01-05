@@ -27,10 +27,10 @@ export class UpdateUserDto {
   @IsString()
   roleId?: string;
 
-  @ApiProperty({ example: 'clm123456', description: 'Department ID', required: false })
+  @ApiProperty({ example: 'clm123456', description: 'Department ID (null to remove from department)', required: false })
   @IsOptional()
   @IsString()
-  departmentId?: string;
+  departmentId?: string | null;
 
   @ApiProperty({ example: true, description: 'Is user active', required: false })
   @IsOptional()

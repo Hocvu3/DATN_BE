@@ -5,7 +5,7 @@ import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class AuditLogsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async getAuditLogs(query: GetAuditLogsQueryDto) {
     const {
@@ -46,6 +46,27 @@ export class AuditLogsService {
 
     if (ipAddress) {
       where.ipAddress = ipAddress;
+    }
+
+    if (query.departmentId) {
+      where.user = {
+        departmentId: query.departmentId,
+      };
+    }
+
+    // Filter by user type: 0 = All, 1 = Manager, 2 = Employee
+    if (query.userType && query.userType !== 0) {
+      const roleCondition: any = {};
+      if (query.userType === 1) {
+        roleCondition.name = 'MANAGER';
+      } else if (query.userType === 2) {
+        roleCondition.name = 'EMPLOYEE';
+      }
+      
+      if (!where.user) {
+        where.user = {};
+      }
+      where.user.role = roleCondition;
     }
 
     if (startDate || endDate) {
@@ -91,6 +112,18 @@ export class AuditLogsService {
               username: true,
               firstName: true,
               lastName: true,
+              role: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+              department: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
             },
           },
           document: {
@@ -156,22 +189,22 @@ export class AuditLogsService {
     ] = await Promise.all([
       // Total logs
       this.prisma.auditLog.count(),
-      
+
       // Last 24 hours
       this.prisma.auditLog.count({
         where: { timestamp: { gte: last24Hours } },
       }),
-      
+
       // Last 7 days
       this.prisma.auditLog.count({
         where: { timestamp: { gte: last7Days } },
       }),
-      
+
       // Last 30 days
       this.prisma.auditLog.count({
         where: { timestamp: { gte: last30Days } },
       }),
-      
+
       // Action statistics
       this.prisma.auditLog.groupBy({
         by: ['action'],
@@ -179,7 +212,7 @@ export class AuditLogsService {
         orderBy: { _count: { action: 'desc' } },
         take: 10,
       }),
-      
+
       // Resource statistics
       this.prisma.auditLog.groupBy({
         by: ['resource'],
@@ -187,7 +220,7 @@ export class AuditLogsService {
         orderBy: { _count: { resource: 'desc' } },
         take: 10,
       }),
-      
+
       // Top users by activity
       this.prisma.auditLog.groupBy({
         by: ['userId'],
@@ -239,7 +272,7 @@ export class AuditLogsService {
 
   async exportAuditLogs(query: GetAuditLogsQueryDto) {
     const { where, orderBy } = this.buildQueryOptions(query);
-    
+
     const logs = await this.prisma.auditLog.findMany({
       where,
       orderBy,

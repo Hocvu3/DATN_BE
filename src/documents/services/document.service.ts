@@ -92,7 +92,7 @@ export class DocumentService {
     const document = await this.documentRepository.create({
       title: createDocumentDto.title,
       description: createDocumentDto.description,
-      documentNumber: createDocumentDto.documentNumber,      securityLevel: createDocumentDto.securityLevel || SecurityLevel.INTERNAL,
+      documentNumber: createDocumentDto.documentNumber, securityLevel: createDocumentDto.securityLevel || SecurityLevel.INTERNAL,
       isConfidential: createDocumentDto.isConfidential || false,
       creator: { connect: { id: creatorId } },
       approver: createDocumentDto.approverId
@@ -138,7 +138,7 @@ export class DocumentService {
       };
     } else if (userRole === 'MANAGER') {
       // Managers can see documents in their department
-      const user = await this.documentRepository.findById(userId);
+      const user = await this.documentRepository.findUserById(userId);
       if (user?.departmentId) {
         where = {
           OR: [{ creatorId: userId }, { departmentId: user.departmentId }],
@@ -227,8 +227,8 @@ export class DocumentService {
     }
 
     const [documents, total] = await Promise.all([
-      this.documentRepository.searchDocuments({
-        ...searchParams,
+      this.documentRepository.findMany({
+        where: countWhere,
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
@@ -258,7 +258,22 @@ export class DocumentService {
   }
 
   async getDocumentById(id: string, userId: string, userRole: string): Promise<DocumentEntity> {
-    const document = await this.documentRepository.findById(id);
+    const document = await this.documentRepository.findById(id, {
+      include: {
+        creator: true,
+        department: true,
+        tags: { include: { tag: true } },
+        versions: {
+          include: { creator: true },
+          orderBy: { versionNumber: 'asc' }
+        },
+        comments: {
+          include: { author: { include: { avatar: true } } },
+          orderBy: { createdAt: 'desc' }
+        },
+        assets: true
+      }
+    });
 
     if (!document) {
       throw new NotFoundException('Document not found');
@@ -310,7 +325,7 @@ export class DocumentService {
     // Update document
     const updatedDocument = await this.documentRepository.update(id, {
       title: updateDocumentDto.title,
-      description: updateDocumentDto.description,      securityLevel: updateDocumentDto.securityLevel,
+      description: updateDocumentDto.description, securityLevel: updateDocumentDto.securityLevel,
       isConfidential: updateDocumentDto.isConfidential,
       approver: updateDocumentDto.approverId
         ? { connect: { id: updateDocumentDto.approverId } }
@@ -563,7 +578,7 @@ export class DocumentService {
     }
 
     if (userRole === 'MANAGER') {
-      const user = await this.documentRepository.findById(userId);
+      const user = await this.documentRepository.findUserById(userId);
       if (user?.departmentId && document.departmentId === user.departmentId) {
         return; // Manager can access documents in their department
       }
@@ -586,7 +601,7 @@ export class DocumentService {
     }
 
     if (userRole === 'MANAGER') {
-      const user = await this.documentRepository.findById(userId);
+      const user = await this.documentRepository.findUserById(userId);
       if (user?.departmentId && document.departmentId === user.departmentId) {
         return; // Manager can update documents in their department
       }
@@ -646,7 +661,8 @@ export class DocumentService {
       contentType: assetData.contentType,
       sizeBytes: assetData.sizeBytes ? assetData.sizeBytes.toString() : null,
       ownerDocument: { connect: { id: documentId } },
-      uploadedBy: { connect: { id: userId } },    });
+      uploadedBy: { connect: { id: userId } },
+    });
 
     // Create audit log
 
@@ -760,7 +776,8 @@ export class DocumentService {
       sizeBytes: assetData.sizeBytes ? assetData.sizeBytes.toString() : null,
       isCover: assetData.isCover || false,
       ownerDocument: { connect: { id: documentId } },
-      uploadedBy: { connect: { id: userId } },    });
+      uploadedBy: { connect: { id: userId } },
+    });
 
     // Create audit log
 
@@ -826,8 +843,28 @@ export class DocumentService {
   async getDashboardStats(userId: string, userRole: string) {
     const prisma = this.documentRepository['prisma'];
 
-    // Get all documents with their latest version
+    let departmentId: string | undefined;
+
+    if (userRole === 'MANAGER') {
+      const user = await this.documentRepository.findUserById(userId);
+      departmentId = user?.departmentId || undefined;
+    }
+
+    // Build base document where clause
+    const docWhere: any = {};
+    if (userRole === 'MANAGER') {
+      if (departmentId) {
+        docWhere.OR = [{ creatorId: userId }, { departmentId }];
+      } else {
+        docWhere.creatorId = userId;
+      }
+    } else if (userRole === 'EMPLOYEE') {
+      docWhere.OR = [{ creatorId: userId }, { approverId: userId }];
+    }
+
+    // Get all documents with their latest version (filtered)
     const allDocuments = await prisma.document.findMany({
+      where: docWhere,
       select: {
         id: true,
         createdAt: true,
@@ -839,19 +876,36 @@ export class DocumentService {
       },
     });
 
+    // Helper to count by status from fetched docs (avoiding N DB calls)
+    const getCount = (status: DocumentStatus) =>
+      allDocuments.filter(d => d.versions[0]?.status === status).length;
+
+    const totalDocuments = allDocuments.length;
+    const draftDocuments = getCount(DocumentStatus.DRAFT);
+    const approvedDocuments = getCount(DocumentStatus.APPROVED);
+    const rejectedDocuments = getCount(DocumentStatus.REJECTED);
+    const archivedDocuments = getCount(DocumentStatus.ARCHIVED);
     const pendingDocuments = await prisma.signatureRequest.count({
       where: {
         status: 'PENDING',
+        // Filter pending signatures relevant to user? 
+        // For Manager/Admin: maybe all pending in their scope? 
+        // Simpler: Count documents with PENDING_APPROVAL status in scope
       },
     });
+    // Override pending with doc status count for consistency
+    const pendingApprovalDocs = getCount(DocumentStatus.PENDING_APPROVAL);
 
-    const totalDocuments = allDocuments.length;
-    const draftDocuments = allDocuments.filter(d => d.versions[0]?.status === DocumentStatus.DRAFT).length;
-    const approvedDocuments = allDocuments.filter(d => d.versions[0]?.status === DocumentStatus.APPROVED).length;
-    const rejectedDocuments = allDocuments.filter(d => d.versions[0]?.status === DocumentStatus.REJECTED).length;
-    const archivedDocuments = allDocuments.filter(d => d.versions[0]?.status === DocumentStatus.ARCHIVED).length;
 
-    // Get user and department statistics
+    // User stats
+    const userWhere: any = {};
+    if (userRole === 'MANAGER' && departmentId) {
+      userWhere.departmentId = departmentId;
+    } else if (userRole === 'EMPLOYEE') {
+      // Employee sees ?? maybe 0 or just self?
+      userWhere.id = userId;
+    }
+
     const [
       totalUsers,
       activeUsers,
@@ -860,12 +914,13 @@ export class DocumentService {
       documentsThisMonth,
       documentsLastMonth,
     ] = await Promise.all([
-      prisma.user.count(),
-      prisma.user.count({ where: { isActive: true } }),
-      prisma.user.count({ where: { isActive: false } }),
-      prisma.department.count(),
+      prisma.user.count({ where: userWhere }),
+      prisma.user.count({ where: { ...userWhere, isActive: true } }),
+      prisma.user.count({ where: { ...userWhere, isActive: false } }),
+      userRole === 'ADMIN' ? prisma.department.count() : 1, // Manager sees 1 dept
       prisma.document.count({
         where: {
+          ...docWhere,
           createdAt: {
             gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
           },
@@ -873,6 +928,7 @@ export class DocumentService {
       }),
       prisma.document.count({
         where: {
+          ...docWhere,
           createdAt: {
             gte: new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1),
             lt: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
@@ -881,8 +937,9 @@ export class DocumentService {
       }),
     ]);
 
-    // Get recent documents (last 10) with latest version status
+    // Get recent documents (last 10)
     const recentDocuments = await prisma.document.findMany({
+      where: docWhere,
       take: 10,
       orderBy: { createdAt: 'desc' },
       include: {
@@ -911,23 +968,29 @@ export class DocumentService {
       },
     });
 
-    // Get documents by department
-    const departmentStats = await prisma.department.findMany({
-      select: {
-        id: true,
-        name: true,
-        _count: {
-          select: {
-            documents: true,
-          },
+    // Departments stats (Only relevant for Admin, or single for Manager)
+    // Define type properly to avoid never[] inference
+    let departmentStats: { id: string; name: string; _count: { documents: number } }[] = [];
+    if (userRole === 'ADMIN') {
+      departmentStats = await prisma.department.findMany({
+        select: {
+          id: true,
+          name: true,
+          _count: { select: { documents: true } },
         },
-      },
-    });
+      });
+    } else if (userRole === 'MANAGER' && departmentId) {
+      const dept = await prisma.department.findUnique({
+        where: { id: departmentId },
+        select: { id: true, name: true, _count: { select: { documents: true } } }
+      });
+      if (dept) departmentStats = [dept];
+    }
 
     // Get documents by status for chart (only show non-zero)
     const documentsByStatus = [
       { status: 'DRAFT', name: 'Draft', count: draftDocuments, color: '#8c8c8c' },
-      { status: 'PENDING_APPROVAL', name: 'Pending', count: pendingDocuments, color: '#faad14' },
+      { status: 'PENDING_APPROVAL', name: 'Pending', count: pendingApprovalDocs, color: '#faad14' },
       { status: 'APPROVED', name: 'Approved', count: approvedDocuments, color: '#52c41a' },
       { status: 'REJECTED', name: 'Rejected', count: rejectedDocuments, color: '#ff4d4f' },
       { status: 'ARCHIVED', name: 'Archived', count: archivedDocuments, color: '#722ed1' },
@@ -939,7 +1002,7 @@ export class DocumentService {
       { status: 'INACTIVE', name: 'Inactive', count: inactiveUsers, color: '#ff4d4f' },
     ].filter(item => item.count > 0);
 
-    // Get top 5 departments by document count
+    // Get top 5 departments (Admin only usually, but safe to map departmentStats)
     const topDepartments = departmentStats
       .sort((a, b) => b._count.documents - a._count.documents)
       .slice(0, 5)
@@ -960,6 +1023,7 @@ export class DocumentService {
 
       const count = await prisma.document.count({
         where: {
+          ...docWhere,
           createdAt: {
             gte: date,
             lt: nextDate,
@@ -983,8 +1047,9 @@ export class DocumentService {
       overview: {
         totalDocuments,
         totalUsers,
+        totalMembers: totalUsers, // Explicitly return totalMembers (alias for totalUsers in scope)
         totalDepartments,
-        pendingApprovals: pendingDocuments,
+        pendingApprovals: pendingApprovalDocs,
         documentsThisMonth,
         growthPercentage,
       },

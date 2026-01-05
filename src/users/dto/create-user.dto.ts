@@ -19,6 +19,7 @@ export class CreateUserDto {
   lastName!: string;
 
   @ApiProperty({ example: 'clm123456', description: 'Role ID' })
+  @IsOptional()
   @IsString()
   roleId!: string;
 
