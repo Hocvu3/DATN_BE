@@ -34,6 +34,51 @@ export class UsersController {
     private readonly s3Service: S3Service,
   ) { }
 
+  @Get('my-department')
+  @ApiOperation({ summary: 'Get my department information' })
+  @ApiOkResponse({ description: 'Department information retrieved successfully' })
+  async getMyDepartment(
+    @Req() req: { user: { userId: string } },
+  ) {
+    try {
+      const user = await this.usersService.findById(req.user.userId);
+      if (!user) throw new UnauthorizedException('User not found');
+
+      if (!user.departmentId) {
+        return {
+          success: true,
+          message: 'No department assigned',
+          data: null,
+        };
+      }
+
+      const department = await this.usersService.getDepartmentById(user.departmentId);
+      if (!department) throw new NotFoundException('Department not found');
+
+      // Get member count
+      const memberCount = await this.usersService.getDepartmentMemberCount(user.departmentId);
+
+      // Get document count for this department
+      const documentCount = await this.usersService.getDepartmentDocumentCount(user.departmentId);
+
+      return {
+        success: true,
+        message: 'Department information retrieved successfully',
+        data: {
+          id: department.id,
+          name: department.name,
+          description: department.description,
+          memberCount,
+          documentCount,
+          createdAt: department.createdAt,
+        },
+      };
+    } catch (error) {
+      console.error('Error in getMyDepartment:', error);
+      throw error;
+    }
+  }
+
   @Get()
   @ApiOperation({ summary: 'Get users with pagination (RLS restricted)' })
   @ApiOkResponse({ description: 'Users retrieved successfully' })

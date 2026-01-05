@@ -24,27 +24,27 @@ import { GetAuditLogsQueryDto } from './dto/get-audit-logs-query.dto';
 export class AuditLogsController {
   constructor(private readonly auditLogsService: AuditLogsService) {}
 
-  @Get()
-  @ApiOperation({ summary: 'Get audit logs with pagination and filters (Admin only)' })
-  @ApiOkResponse({ description: 'Audit logs retrieved successfully' })
-  async getAuditLogs(
+  @Get('my-activities')
+  @ApiOperation({ summary: 'Get my own activity logs (Employee access)' })
+  @ApiOkResponse({ description: 'Activity logs retrieved successfully' })
+  async getMyActivities(
     @Req() req: { user: { userId: string; role: string } },
     @Query() query: GetAuditLogsQueryDto,
   ) {
-    // Check if user is ADMIN
-    if (req.user.role !== 'ADMIN') {
-      throw new UnauthorizedException('Only administrators can access audit logs');
-    }
-
     try {
-      const result = await this.auditLogsService.getAuditLogs(query);
+      // Filter to only show logs for the current user with userType=2 (employee only)
+      const result = await this.auditLogsService.getAuditLogs({
+        ...query,
+        userId: req.user.userId,
+        userType: 2, // Only employee type
+      });
       return {
-        message: 'Audit logs retrieved successfully',
+        message: 'Activity logs retrieved successfully',
         ...result,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      throw new Error(`Failed to retrieve audit logs: ${errorMessage}`);
+      throw new Error(`Failed to retrieve activity logs: ${errorMessage}`);
     }
   }
 
@@ -68,6 +68,30 @@ export class AuditLogsController {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       throw new Error(`Failed to retrieve audit log statistics: ${errorMessage}`);
+    }
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'Get audit logs with pagination and filters (Admin only)' })
+  @ApiOkResponse({ description: 'Audit logs retrieved successfully' })
+  async getAuditLogs(
+    @Req() req: { user: { userId: string; role: string } },
+    @Query() query: GetAuditLogsQueryDto,
+  ) {
+    // Check if user is ADMIN
+    if (req.user.role !== 'ADMIN') {
+      throw new UnauthorizedException('Only administrators can access audit logs');
+    }
+
+    try {
+      const result = await this.auditLogsService.getAuditLogs(query);
+      return {
+        message: 'Audit logs retrieved successfully',
+        ...result,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to retrieve audit logs: ${errorMessage}`);
     }
   }
 

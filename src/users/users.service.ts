@@ -543,7 +543,7 @@ export class UsersService {
       firstName?: string;
       lastName?: string;
       roleId?: string;
-      departmentId?: string;
+      departmentId?: string | null;
       isActive?: boolean;
     },
   ): Promise<UserEntity> {
@@ -692,6 +692,38 @@ export class UsersService {
     return this.prisma.department.findMany({
       where: { isActive: true },
       select: { id: true, name: true, description: true },
+    });
+  }
+
+  async getDepartmentById(id: string) {
+    return this.prisma.department.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  async getDepartmentMemberCount(departmentId: string): Promise<number> {
+    return this.prisma.user.count({
+      where: {
+        departmentId,
+        isActive: true,
+      },
+    });
+  }
+
+  async getDepartmentDocumentCount(departmentId: string): Promise<number> {
+    // Count documents that belong to this department
+    return this.prisma.document.count({
+      where: {
+        departmentId,
+      },
     });
   }
 }
