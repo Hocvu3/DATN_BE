@@ -654,10 +654,10 @@ async function main(): Promise<void> {
   console.log('');
   console.log('🔐 Default Login Credentials:');
   console.log('   Admin: hocvu2003@gmail.com / hocvu123');
-  console.log('   IT Manager: manager.it@docuflow.com / hocvu123');
-  console.log('   HR Manager: manager.hr@docuflow.com / hocvu123');
-  console.log('   Employee 1: employee1@docuflow.com / hocvu123');
-  console.log('   Employee 2: employee2@docuflow.com / hocvu123');
+  console.log('   IT Manager: manager.it@gmail.com / hocvu123');
+  console.log('   HR Manager: manager.hr@gmail.com / hocvu123');
+  console.log('   Employee 1: employee1@gmail.com / hocvu123');
+  console.log('   Employee 2: employee2@gmail.com / hocvu123');
 }
 
 main()
