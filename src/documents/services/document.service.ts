@@ -862,39 +862,46 @@ export class DocumentService {
       docWhere.OR = [{ creatorId: userId }, { approverId: userId }];
     }
 
-    // Get all documents with their latest version (filtered)
-    const allDocuments = await prisma.document.findMany({
-      where: docWhere,
-      select: {
-        id: true,
-        createdAt: true,
-        versions: {
-          select: { status: true },
-          orderBy: { versionNumber: 'desc' },
-          take: 1,
-        },
-      },
-    });
+    // Build version where clause based on document access
+    const versionWhere: any = {
+      document: docWhere,
+    };
 
-    // Helper to count by status from fetched docs (avoiding N DB calls)
-    const getCount = (status: DocumentStatus) =>
-      allDocuments.filter(d => d.versions[0]?.status === status).length;
+    // Count ALL document versions by status (not just latest version per document)
+    const [
+      totalDocuments,
+      draftDocuments,
+      pendingApprovalDocs,
+      approvedDocuments,
+      rejectedDocuments,
+      archivedDocuments,
+    ] = await Promise.all([
+      prisma.document.count({ where: docWhere }),
+      prisma.documentVersion.count({
+        where: { ...versionWhere, status: DocumentStatus.DRAFT },
+      }),
+      prisma.documentVersion.count({
+        where: { ...versionWhere, status: DocumentStatus.PENDING_APPROVAL },
+      }),
+      prisma.documentVersion.count({
+        where: { ...versionWhere, status: DocumentStatus.APPROVED },
+      }),
+      prisma.documentVersion.count({
+        where: { ...versionWhere, status: DocumentStatus.REJECTED },
+      }),
+      prisma.documentVersion.count({
+        where: { ...versionWhere, status: DocumentStatus.ARCHIVED },
+      }),
+    ]);
 
-    const totalDocuments = allDocuments.length;
-    const draftDocuments = getCount(DocumentStatus.DRAFT);
-    const approvedDocuments = getCount(DocumentStatus.APPROVED);
-    const rejectedDocuments = getCount(DocumentStatus.REJECTED);
-    const archivedDocuments = getCount(DocumentStatus.ARCHIVED);
-    const pendingDocuments = await prisma.signatureRequest.count({
-      where: {
-        status: 'PENDING',
-        // Filter pending signatures relevant to user? 
-        // For Manager/Admin: maybe all pending in their scope? 
-        // Simpler: Count documents with PENDING_APPROVAL status in scope
-      },
-    });
-    // Override pending with doc status count for consistency
-    const pendingApprovalDocs = getCount(DocumentStatus.PENDING_APPROVAL);
+    this.logger.debug(
+      `Dashboard stats - Total documents: ${totalDocuments}, ` +
+      `Draft versions: ${draftDocuments}, ` +
+      `Pending versions: ${pendingApprovalDocs}, ` +
+      `Approved versions: ${approvedDocuments}, ` +
+      `Rejected versions: ${rejectedDocuments}, ` +
+      `Archived versions: ${archivedDocuments}`
+    );
 
 
     // User stats
