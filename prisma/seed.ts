@@ -1,5 +1,6 @@
 import { PrismaClient, DocumentStatus, SecurityLevel } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import { it } from 'node:test';
 
 const databaseUrl = process.env.DATABASE_ADMIN_URL || process.env.DATABASE_URL;
 const prisma = new PrismaClient({
@@ -81,7 +82,7 @@ async function main(): Promise<void> {
 
   // ===== 3. CREATE USERS =====
   console.log('👥 Creating users...');
-  const hashedPassword = await bcrypt.hash('hocvu', 10);
+  const hashedPassword = await bcrypt.hash('hocvu123', 10);
 
   const adminUser = await prisma.user.create({
     data: {
@@ -97,7 +98,7 @@ async function main(): Promise<void> {
 
   const manager1 = await prisma.user.create({
     data: {
-      email: 'manager.it@docuflow.com',
+      email: 'manager.it@gmail.com',
       username: 'manager_it',
       passwordHash: hashedPassword,
       firstName: 'John',
@@ -109,7 +110,7 @@ async function main(): Promise<void> {
 
   const manager2 = await prisma.user.create({
     data: {
-      email: 'manager.hr@docuflow.com',
+      email: 'manager.hr@gmail.com',
       username: 'manager_hr',
       passwordHash: hashedPassword,
       firstName: 'Sarah',
@@ -121,7 +122,7 @@ async function main(): Promise<void> {
 
   const employee1 = await prisma.user.create({
     data: {
-      email: 'employee1@docuflow.com',
+      email: 'employee.it@gmail.com',
       username: 'employee1',
       passwordHash: hashedPassword,
       firstName: 'Alice',
@@ -133,7 +134,7 @@ async function main(): Promise<void> {
 
   const employee2 = await prisma.user.create({
     data: {
-      email: 'employee2@docuflow.com',
+      email: 'employee.finance@gmail.com',
       username: 'employee2',
       passwordHash: hashedPassword,
       firstName: 'Bob',
@@ -143,13 +144,53 @@ async function main(): Promise<void> {
     },
   });
 
+  // Dummy users
+  await prisma.user.create({
+    data: {
+      email: 'employee.example1@gmail.com',
+      username: 'employee_example1',
+      passwordHash: hashedPassword,
+      firstName: 'Bob',
+      lastName: 'Analyst',
+      roleId: employeeRole.id,
+      departmentId: financeDept.id,
+      isActive: false,
+    },
+  });
+
+   await prisma.user.create({
+    data: {
+      email: 'employee.example2@gmail.com',
+      username: 'employee_example2',
+      passwordHash: hashedPassword,
+      firstName: 'Bob',
+      lastName: 'Analyst',
+      roleId: employeeRole.id,
+      departmentId: itDept.id,
+      isActive: false,
+    },
+  });
+
+   await prisma.user.create({
+    data: {
+      email: 'employee.example3@gmail.com',
+      username: 'employee_example3',
+      passwordHash: hashedPassword,
+      firstName: 'Bob',
+      lastName: 'Analyst',
+      roleId: employeeRole.id,
+      departmentId: financeDept.id,
+      isActive: false,
+    },
+  });
+
   // ===== 4. CREATE SIGNATURE STAMPS =====
   console.log('✍️ Creating signature stamps...');
   const stamp1 = await prisma.signature.create({
     data: {
       name: 'Admin Approval Stamp',
       description: 'Official admin approval signature',
-      imageUrl: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/signatures/admin-stamp.png',
+      imageUrl: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/signatures/acb6ec44-354d-4a8f-a173-17dbe429e8e9.png',
       s3Key: 'signatures/admin-stamp.png',
       createdById: adminUser.id,
     },
@@ -159,9 +200,20 @@ async function main(): Promise<void> {
     data: {
       name: 'Manager Stamp',
       description: 'Department manager signature',
-      imageUrl: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/signatures/manager-stamp.png',
+      imageUrl: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/signatures/acb6ec44-354d-4a8f-a173-17dbe429e8e9.png',
       s3Key: 'signatures/manager-stamp.png',
       createdById: manager1.id,
+    },
+  });
+
+  await prisma.signature.create({
+    data: {
+      name: 'Manager Stamp',
+      description: 'Department manager signature',
+      imageUrl: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/signatures/acb6ec44-354d-4a8f-a173-17dbe429e8e9.png',
+      s3Key: 'signatures/manager-stamp.png',
+      createdById: manager1.id,
+      isActive: false,
     },
   });
 
@@ -191,6 +243,15 @@ async function main(): Promise<void> {
     },
   });
 
+  await prisma.tag.create({
+    data: {
+      name: 'Obsolete',
+      color: '#8c8c8c',
+      description: 'Outdated document',
+      isActive: false,
+    },
+  });
+
   // ===== 6. CREATE DOCUMENTS WITH MULTIPLE VERSIONS =====
   console.log('📄 Creating documents with multiple versions...');
 
@@ -213,8 +274,8 @@ async function main(): Promise<void> {
       versionNumber: 1,
       filePath: '/documents/it-infra-v1.pdf',
       s3Key: 'documents/it-infra-v1.pdf',
-      s3Url: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/documents/it-infra-v1.pdf',
-      thumbnailUrl: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/thumbnails/it-infra-v1.jpg',
+      s3Url: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/documents/3eb821ae-613b-4743-901b-d27a6d8c5645.pdf',
+      thumbnailUrl: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/documents/3eb821ae-613b-4743-901b-d27a6d8c5645.pdf',
       fileSize: 1024000,
       checksum: 'abc123def456',
       mimeType: 'application/pdf',
@@ -230,8 +291,8 @@ async function main(): Promise<void> {
       versionNumber: 2,
       filePath: '/documents/it-infra-v2.pdf',
       s3Key: 'documents/it-infra-v2.pdf',
-      s3Url: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/documents/it-infra-v2.pdf',
-      thumbnailUrl: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/thumbnails/it-infra-v2.jpg',
+      s3Url: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/documents/3eb821ae-613b-4743-901b-d27a6d8c5645.pdf',
+      thumbnailUrl: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/documents/3eb821ae-613b-4743-901b-d27a6d8c5645.pdf',
       fileSize: 1048576,
       checksum: 'def456ghi789',
       mimeType: 'application/pdf',
@@ -247,8 +308,8 @@ async function main(): Promise<void> {
       versionNumber: 3,
       filePath: '/documents/it-infra-v3.pdf',
       s3Key: 'documents/it-infra-v3.pdf',
-      s3Url: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/documents/it-infra-v3.pdf',
-      thumbnailUrl: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/thumbnails/it-infra-v3.jpg',
+      s3Url: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/documents/3eb821ae-613b-4743-901b-d27a6d8c5645.pdf',
+      thumbnailUrl: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/documents/3eb821ae-613b-4743-901b-d27a6d8c5645.pdf',
       fileSize: 1100000,
       checksum: 'ghi789jkl012',
       mimeType: 'application/pdf',
@@ -280,7 +341,7 @@ async function main(): Promise<void> {
   await prisma.asset.create({
     data: {
       filename: 'it-infra-cover.jpg',
-      s3Url: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/covers/it-infra-cover.jpg',
+      s3Url: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/covers/8de87450-c477-48b5-b6e3-370029b63b4b.jpg',
       contentType: 'image/jpeg',
       sizeBytes: '51200',
       isCover: true,
@@ -315,8 +376,8 @@ async function main(): Promise<void> {
         versionNumber: i,
         filePath: `/documents/budget-v${i}.pdf`,
         s3Key: `documents/budget-v${i}.pdf`,
-        s3Url: `https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/documents/budget-v${i}.pdf`,
-        thumbnailUrl: `https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/thumbnails/budget-v${i}.jpg`,
+        s3Url: `https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/documents/3eb821ae-613b-4743-901b-d27a6d8c5645.pdf`,
+        thumbnailUrl: `https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/documents/3eb821ae-613b-4743-901b-d27a6d8c5645.pdf`,
         fileSize: 2000000 + (i * 100000),
         checksum: `budget-checksum-v${i}`,
         mimeType: 'application/pdf',
@@ -349,7 +410,7 @@ async function main(): Promise<void> {
   await prisma.asset.create({
     data: {
       filename: 'budget-cover.jpg',
-      s3Url: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/covers/budget-cover.jpg',
+      s3Url: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/covers/8de87450-c477-48b5-b6e3-370029b63b4b.jpg',
       contentType: 'image/jpeg',
       sizeBytes: '48000',
       isCover: true,
@@ -491,6 +552,89 @@ async function main(): Promise<void> {
     ],
   });
 
+  //10. Add Signature Request
+  console.log('🖋️ Adding signature requests...');
+  await prisma.signatureRequest.create({
+    data: {
+      documentVersionId: doc2Versions[2].id,
+      requesterId: employee2.id,
+      status: 'PENDING',
+      requestedAt: new Date(),
+      signedAt: new Date(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 1 week later
+      signatureType: 'DIGITAL',
+    },
+  });
+
+  await prisma.signatureRequest.create({
+    data: {
+      documentVersionId: doc3v2.id,
+      requesterId: manager2.id,
+      status: 'PENDING',
+      requestedAt: new Date(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 1 week later
+      signatureType: 'DIGITAL',
+    },
+  });
+
+  await prisma.signatureRequest.create({
+    data: {
+      documentVersionId: doc1v3.id,
+      requesterId: employee1.id,
+      status: 'SIGNED',
+      requestedAt: new Date(),
+      signedAt: new Date(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 1 week later
+      signatureType: 'DIGITAL',
+    },
+  });
+
+  await prisma.signatureRequest.create({
+    data: {
+      documentVersionId: doc3v1.id,
+      requesterId: manager2.id,
+      status: 'PENDING',
+      requestedAt: new Date(),
+      signedAt: new Date(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 1 week later
+      signatureType: 'DIGITAL',
+    },
+  });
+
+  await prisma.signatureRequest.create({
+    data: {
+      documentVersionId: doc2Versions[3].id,
+      requesterId: adminUser.id,
+      status: 'EXPIRED',
+      requestedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), // 10 days ago
+      expiresAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
+      signatureType: 'DIGITAL',
+    },
+  });
+
+  await prisma.signatureRequest.create({
+    data: {
+      documentVersionId: doc1v3.id,
+      requesterId: employee1.id,
+      status: 'PENDING',
+      requestedAt: new Date(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 1 week later
+      signatureType: 'DIGITAL',
+    },
+  });
+
+  await prisma.signatureRequest.create({
+    data: {
+      documentVersionId: doc3v2.id,
+      requesterId: manager2.id,
+      status: 'SIGNED',
+      requestedAt: new Date(),
+      signedAt: new Date(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 1 week later
+      signatureType: 'DIGITAL',
+    },
+  });
+
   console.log('✅ Seed completed successfully!');
   console.log(`
 📊 Summary:
@@ -504,15 +648,16 @@ async function main(): Promise<void> {
    - Tags: 3
    - Comments: 3
    - Notifications: 2
+   - Signature Requests: 9
   `);
   
   console.log('');
   console.log('🔐 Default Login Credentials:');
-  console.log('   Admin: hocvu2003@gmail.com / hocvu');
-  console.log('   IT Manager: manager.it@docuflow.com / hocvu');
-  console.log('   HR Manager: manager.hr@docuflow.com / hocvu');
-  console.log('   Employee 1: employee1@docuflow.com / hocvu');
-  console.log('   Employee 2: employee2@docuflow.com / hocvu');
+  console.log('   Admin: hocvu2003@gmail.com / hocvu123');
+  console.log('   IT Manager: manager.it@docuflow.com / hocvu123');
+  console.log('   HR Manager: manager.hr@docuflow.com / hocvu123');
+  console.log('   Employee 1: employee1@docuflow.com / hocvu123');
+  console.log('   Employee 2: employee2@docuflow.com / hocvu123');
 }
 
 main()
