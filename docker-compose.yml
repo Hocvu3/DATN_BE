@@ -30,9 +30,10 @@ services:
 
   # Application
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    image: ${IMAGE_NAME:-hokvu/secure-document-management}:${IMAGE_TAG:-latest}
     container_name: secure_doc_app
     environment:
       NODE_ENV: production
@@ -46,30 +47,29 @@ services:
       PORT: 3000
       
       # Gmail configuration (use dummy values for local dev)
-      GMAIL_USER: test@example.com
-      GMAIL_APP_PASSWORD: dummy_password
-      GOOGLE_CLIENT_ID: dummy_client_id
-      GOOGLE_CLIENT_SECRET: dummy_client_secret
-      GOOGLE_REDIRECT_URI: http://localhost:3000/auth/google/callback
+      GMAIL_USER: ${GMAIL_USER:-dummy_user}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-dummy_password}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-dummy_client_id}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-dummy_client_secret}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:3000/auth/google/callback}
 
       # Security Configuration
-      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
       JWT_ACCESS_EXPIRES: 15m
-      JWT_REFRESH_SECRET: your-super-secret-refresh-key-change-in-production
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your-super-secret-refresh-key-change-in-production}
       JWT_REFRESH_EXPIRES: 7d
-      ENCRYPTION_KEY: your-32-character-encryption-key
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-your-32-character-encryption-key}
       BCRYPT_ROUNDS: 12
 
       # File Upload Configuration (use dummy AWS credentials)
-      AWS_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: dummy_access_key
-      AWS_SECRET_ACCESS_KEY: dummy_secret_key
-      AWS_S3_BUCKET_NAME: dev-bucket
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-dummy_access_key}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-dummy_secret_key}
+      AWS_S3_BUCKET_NAME: ${AWS_S3_BUCKET_NAME:-dev-bucket}
 
       # Digital Signature Configuration (use dummy keys)
-      SIGNATURE_PRIVATE_KEY: dummy_private_key
-      SIGNATURE_PUBLIC_KEY: dummy_public_key
-
+      SIGNATURE_PRIVATE_KEY: ${SIGNATURE_PRIVATE_KEY:-dummy_private_key}
+      SIGNATURE_PUBLIC_KEY: ${SIGNATURE_PUBLIC_KEY:-dummy_public_key}
     volumes:
       - app_uploads:/app/uploads
       - app_temp:/app/temp
