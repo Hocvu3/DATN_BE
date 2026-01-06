@@ -471,7 +471,7 @@ async function main(): Promise<void> {
       documentNumber: 'COM-NEWS-2024-07',
       securityLevel: SecurityLevel.PUBLIC,
       creatorId: employee1.id,
-      departmentId: itDept.id,
+      departmentId: hrDept.id,
     },
   });
 
@@ -486,7 +486,7 @@ async function main(): Promise<void> {
       fileSize: 1500000,
       checksum: 'newsletter-july-2024-checksum',
       mimeType: 'application/pdf',
-      status: DocumentStatus.APPROVED,
+      status: DocumentStatus.PENDING_APPROVAL,
       creatorId: employee1.id,
     },
   });
@@ -510,7 +510,7 @@ async function main(): Promise<void> {
       documentNumber: 'COM-NEWS-2024-08',
       securityLevel: SecurityLevel.PUBLIC,
       creatorId: employee1.id,
-      departmentId: itDept.id,
+      departmentId: financeDept.id,
     },
   });
 
@@ -525,7 +525,7 @@ async function main(): Promise<void> {
       fileSize: 1200000,
       checksum: 'picnic-2024-checksum',
       mimeType: 'application/pdf',
-      status: DocumentStatus.APPROVED,
+      status: DocumentStatus.PENDING_APPROVAL,
       creatorId: employee1.id,
     },
   });
