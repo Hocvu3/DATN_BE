@@ -463,6 +463,34 @@ async function main(): Promise<void> {
     },
   });
 
+  // Public document
+  const doc4 = await prisma.document.create({
+    data: {
+      title: 'Company Newsletter July 2024',
+      description: 'Monthly newsletter for all employees',
+      documentNumber: 'COM-NEWS-2024-07',
+      securityLevel: SecurityLevel.PUBLIC,
+      creatorId: employee1.id,
+      departmentId: itDept.id,
+    },
+  });
+
+  const doc4v1 = await prisma.documentVersion.create({
+    data: {
+      documentId: doc4.id,
+      versionNumber: 1,
+      filePath: '/documents/newsletter-july-2024.pdf',
+      s3Key: 'documents/newsletter-july-2024.pdf',
+      s3Url: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/documents/handbook-v2.pdf',
+      thumbnailUrl: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/thumbnails/handbook-v2.jpg',
+      fileSize: 1500000,
+      checksum: 'newsletter-july-2024-checksum',
+      mimeType: 'application/pdf',
+      status: DocumentStatus.APPROVED,
+      creatorId: employee1.id,
+    },
+  });
+
   // Add signatures to both versions
   await prisma.digitalSignature.create({
     data: {
