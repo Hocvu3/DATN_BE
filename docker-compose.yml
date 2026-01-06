@@ -65,6 +65,11 @@ services:
       AWS_ACCESS_KEY_ID: dummy_access_key
       AWS_SECRET_ACCESS_KEY: dummy_secret_key
       AWS_S3_BUCKET_NAME: dev-bucket
+
+      # Digital Signature Configuration (use dummy keys)
+      SIGNATURE_PRIVATE_KEY: dummy_private_key
+      SIGNATURE_PUBLIC_KEY: dummy_public_key
+
     volumes:
       - app_uploads:/app/uploads
       - app_temp:/app/temp

@@ -68,6 +68,10 @@ services:
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_S3_BUCKET_NAME: ${AWS_S3_BUCKET_NAME}
+
+      # Digital Signature Configuration
+      SIGNATURE_PRIVATE_KEY: ${SIGNATURE_PRIVATE_KEY}
+      SIGNATURE_PUBLIC_KEY: ${SIGNATURE_PUBLIC_KEY}
     volumes:
       - app_uploads:/app/uploads
       - app_temp:/app/temp
