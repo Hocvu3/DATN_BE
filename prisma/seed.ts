@@ -491,6 +491,57 @@ async function main(): Promise<void> {
     },
   });
 
+  await prisma.asset.create({
+    data: {
+      filename: 'image.jpg',
+      s3Url: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/covers/8de87450-c477-48b5-b6e3-370029b63b4b.jpg',
+      contentType: 'image/jpeg',
+      sizeBytes: '48000',
+      isCover: true,
+      ownerDocumentId: doc4.id,
+      uploadedById: employee1.id,
+    },
+  });
+
+  const doc5 = await prisma.document.create({
+    data: {
+      title: 'Annual Company Picnic 2024',
+      description: 'Details and schedule for the annual company picnic',
+      documentNumber: 'COM-NEWS-2024-08',
+      securityLevel: SecurityLevel.PUBLIC,
+      creatorId: employee1.id,
+      departmentId: itDept.id,
+    },
+  });
+
+  const doc5v1 = await prisma.documentVersion.create({
+    data: {
+      documentId: doc5.id,
+      versionNumber: 1,
+      filePath: '/documents/picnic-2024.pdf',
+      s3Key: 'documents/picnic-2024.pdf',
+      s3Url: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/documents/handbook-v2.pdf',
+      thumbnailUrl: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/thumbnails/handbook-v2.jpg',
+      fileSize: 1200000,
+      checksum: 'picnic-2024-checksum',
+      mimeType: 'application/pdf',
+      status: DocumentStatus.APPROVED,
+      creatorId: employee1.id,
+    },
+  });
+
+  await prisma.asset.create({
+    data: {
+      filename: 'image1.jpg',
+      s3Url: 'https://dms-storage-bucket-68688686.s3.ap-southeast-2.amazonaws.com/covers/8de87450-c477-48b5-b6e3-370029b63b4b.jpg',
+      contentType: 'image/jpeg',
+      sizeBytes: '48000',
+      isCover: true,
+      ownerDocumentId: doc5.id,
+      uploadedById: employee1.id,
+    },
+  });
+
   // Add signatures to both versions
   await prisma.digitalSignature.create({
     data: {
