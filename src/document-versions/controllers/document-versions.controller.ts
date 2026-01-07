@@ -24,6 +24,9 @@ import { DocumentStatus } from '@prisma/client';
 import { SignatureService } from '../../signatures/services/signature.service';
 import { SignatureStampsService } from '../../signatures/services/signature-stamps.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationsService } from '../../notifications/notifications.service';
+import { NotificationsGateway } from '../../notifications/notifications.gateway';
+import { NotificationType } from '@prisma/client';
 
 @Controller('documents/:documentId/versions')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -33,6 +36,8 @@ export class DocumentVersionsController {
     private readonly signatureService: SignatureService,
     private readonly signatureStampsService: SignatureStampsService,
     private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+    private readonly notificationsGateway: NotificationsGateway,
   ) {}
 
   /**
@@ -75,7 +80,45 @@ export class DocumentVersionsController {
     @Body() createVersionDto: CreateVersionDto,
     @Req() req: any,
   ) {
-    return this.documentVersionsService.createVersion(documentId, req.user.userId, createVersionDto);
+    const version = await this.documentVersionsService.createVersion(
+      documentId,
+      req.user.userId,
+      createVersionDto,
+    );
+
+    // Send notification to admins about new document upload
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: req.user.userId },
+        include: { department: true },
+      });
+      
+      const document = await this.prisma.document.findUnique({
+        where: { id: documentId },
+      });
+
+      if (user && document) {
+        const userName = `${user.firstName} ${user.lastName}`;
+        const notifications = await this.notificationsService.createForAdmins(
+          NotificationType.DOCUMENT_UPDATED,
+          'New Document Version Uploaded',
+          `${userName} has uploaded version ${version.versionNumber} of document "${document.title}".`,
+        );
+
+        // Send real-time notification via WebSocket
+        for (const notification of notifications) {
+          await this.notificationsGateway.sendToUser(
+            notification.recipientId,
+            notification,
+          );
+        }
+      }
+    } catch (error) {
+      // Don't fail the upload if notification fails
+      console.error('Failed to send upload notification:', error);
+    }
+
+    return version;
   }
 
   /**
@@ -182,7 +225,13 @@ export class DocumentVersionsController {
   ) {
     const version = await this.prisma.documentVersion.findUnique({
       where: { id: versionId },
-      include: { document: true },
+      include: { 
+        document: {
+          include: {
+            creator: true,
+          },
+        },
+      },
     });
 
     if (!version) {
@@ -258,6 +307,34 @@ export class DocumentVersionsController {
         data: { status: 'APPROVED' },
       });
 
+      // Send notification to document creator and their department manager
+      try {
+        const user = await this.prisma.user.findUnique({
+          where: { id: req.user.userId },
+        });
+
+        if (user) {
+          const userName = `${user.firstName} ${user.lastName}`;
+          const notifications = await this.notificationsService.createForCreatorAndManager(
+            version.document.creatorId,
+            NotificationType.APPROVAL_GRANTED,
+            'Document Approved',
+            `${userName} has approved version ${version.versionNumber} of document "${version.document.title}".`,
+          );
+
+          // Send real-time notification via WebSocket
+          for (const notification of notifications) {
+            await this.notificationsGateway.sendToUser(
+              notification.recipientId,
+              notification,
+            );
+          }
+        }
+      } catch (error) {
+        // Don't fail the approval if notification fails
+        console.error('Failed to send approval notification:', error);
+      }
+
       return {
         success: true,
         message: 'Document version approved successfully',
@@ -283,7 +360,13 @@ export class DocumentVersionsController {
   ) {
     const version = await this.prisma.documentVersion.findUnique({
       where: { id: versionId },
-      include: { document: true },
+      include: { 
+        document: {
+          include: {
+            creator: true,
+          },
+        },
+      },
     });
 
     if (!version) {
@@ -315,6 +398,34 @@ export class DocumentVersionsController {
         where: { id: versionId },
         data: { status: DocumentStatus.PENDING_APPROVAL },
       });
+    }
+
+    // Send notification to document creator and their department manager
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: req.user.userId },
+      });
+
+      if (user) {
+        const userName = `${user.firstName} ${user.lastName}`;
+        const notifications = await this.notificationsService.createForCreatorAndManager(
+          version.document.creatorId,
+          NotificationType.APPROVAL_REJECTED,
+          'Document Rejected',
+          `${userName} has rejected version ${version.versionNumber} of document "${version.document.title}". Reason: ${body.reason}`,
+        );
+
+        // Send real-time notification via WebSocket
+        for (const notification of notifications) {
+          await this.notificationsGateway.sendToUser(
+            notification.recipientId,
+            notification,
+          );
+        }
+      }
+    } catch (error) {
+      // Don't fail the rejection if notification fails
+      console.error('Failed to send rejection notification:', error);
     }
 
     return {

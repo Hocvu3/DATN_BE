@@ -14,11 +14,13 @@ import {
   Res,
   StreamableFile,
   Logger,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse } from '@nestjs/swagger';
-import { SecurityLevel } from '@prisma/client';
+import { SecurityLevel, NotificationType } from '@prisma/client';
 import { DocumentService } from '../services/document.service';
 import { S3Service } from '../../s3/s3.service';
 import { CreateDocumentDto } from '../dto/create-document.dto';
@@ -30,6 +32,8 @@ import { PresignedUrlDto } from '../dto/presigned-url.dto';
 import { LinkAssetDto } from '../dto/link-asset.dto';
 import { LinkCoverAssetDto } from '../dto/link-cover-asset.dto';
 import { Public } from '../../auth/decorators/public.decorator';
+import { NotificationsService } from '../../notifications/notifications.service';
+import { NotificationsGateway } from '../../notifications/notifications.gateway';
 
 @ApiTags('Documents')
 @Controller('documents')
@@ -41,6 +45,10 @@ export class DocumentController {
   constructor(
     private readonly documentService: DocumentService,
     private readonly s3Service: S3Service,
+    @Inject(forwardRef(() => NotificationsService))
+    private readonly notificationsService: NotificationsService,
+    @Inject(forwardRef(() => NotificationsGateway))
+    private readonly notificationsGateway: NotificationsGateway,
   ) { }
 
   @Post()
@@ -55,6 +63,26 @@ export class DocumentController {
         req.user.userId,
         createDocumentDto,
       );
+
+      // Send notification to admins and creator's department manager
+      try {
+        const creatorName = `${document.creator.firstName} ${document.creator.lastName}`;
+        const notifications = await this.notificationsService.createForAdminsAndUserDepartmentManager(
+          req.user.userId,
+          NotificationType.DOCUMENT_UPDATED,
+          'New Document Created',
+          `${creatorName} created a new document: "${document.title}" (${document.documentNumber})`,
+        );
+        
+        // Send real-time notification via WebSocket
+        for (const notification of notifications) {
+          await this.notificationsGateway.sendToUser(notification.recipientId, notification);
+        }
+      } catch (error) {
+        this.logger.error(`Failed to send document creation notification: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        // Don't fail document creation if notification fails
+      }
+
       return {
         message: 'Document created successfully',
         document: {
@@ -259,7 +287,29 @@ export class DocumentController {
     @Param('id') id: string,
   ) {
     try {
+      // Get document details before deletion for notification
+      const document = await this.documentService.getDocumentById(id, req.user.userId, req.user.role);
+      
       await this.documentService.deleteDocument(id, req.user.userId, req.user.role);
+
+      // Send notification to admins and document creator's department manager
+      try {
+        const notifications = await this.notificationsService.createForAdminsAndUserDepartmentManager(
+          document.creator.id,
+          NotificationType.DOCUMENT_UPDATED,
+          'Document Deleted',
+          `Document "${document.title}" (${document.documentNumber}) has been deleted.`,
+        );
+        
+        // Send real-time notification via WebSocket
+        for (const notification of notifications) {
+          await this.notificationsGateway.sendToUser(notification.recipientId, notification);
+        }
+      } catch (error) {
+        this.logger.error(`Failed to send document deletion notification: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        // Don't fail document deletion if notification fails
+      }
+
       return {
         message: 'Document deleted successfully',
       };
@@ -364,6 +414,28 @@ export class DocumentController {
         req.user.userId,
         createVersionDto,
       );
+
+      // Send notification to admins and uploader's department manager
+      try {
+        const document = await this.documentService.getDocumentById(id, req.user.userId, req.user.role);
+        const uploaderName = `${version.creator.firstName} ${version.creator.lastName}`;
+        
+        const notifications = await this.notificationsService.createForAdminsAndUserDepartmentManager(
+          req.user.userId,
+          NotificationType.DOCUMENT_UPDATED,
+          'Document Version Uploaded',
+          `${uploaderName} uploaded version ${version.versionNumber} of document "${document.title}".`,
+        );
+        
+        // Send real-time notification via WebSocket
+        for (const notification of notifications) {
+          await this.notificationsGateway.sendToUser(notification.recipientId, notification);
+        }
+      } catch (error) {
+        this.logger.error(`Failed to send version upload notification: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        // Don't fail version creation if notification fails
+      }
+
       return {
         message: 'Document version created successfully',
         version,
@@ -613,12 +685,32 @@ export class DocumentController {
     @Param('versionNumber') versionNumber: string,
   ) {
     try {
+      // Get document and version info before deletion
+      const document = await this.documentService.getDocumentById(id, req.user.userId, req.user.role);
+      
       await this.documentService.deleteDocumentVersion(
         id,
         parseInt(versionNumber),
         req.user.userId,
         req.user.role,
       );
+
+      // Send notification to admins and document creator's department manager
+      try {
+        const notifications = await this.notificationsService.createForAdminsAndUserDepartmentManager(
+          document.creator.id,
+          NotificationType.DOCUMENT_UPDATED,
+          'Document Version Deleted',
+          `Version ${versionNumber} of document "${document.title}" has been deleted.`,
+        );
+        
+        // Send real-time notification via WebSocket
+        for (const notification of notifications) {
+          await this.notificationsGateway.sendToUser(notification.recipientId, notification);
+        }
+      } catch (error) {
+        this.logger.error(`Failed to send version deletion notification: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
 
       return {
         message: 'Document version deleted successfully',

@@ -619,12 +619,12 @@ export class DocumentService {
     userId: string,
     userRole: string,
   ) {
-    if (userRole !== 'ADMIN') {
-      throw new ForbiddenException('Only administrators can delete documents');
-    }
+    // if (userRole !== 'ADMIN') {
+    //   throw new ForbiddenException('Only administrators can delete documents');
+    // }
 
-    if (document.creatorId === userId) {
-      throw new ForbiddenException('You cannot delete your own documents');
+    if (document.creatorId !== userId) {
+      throw new ForbiddenException('You cannot delete a document you did not create');
     }
   }
 

@@ -15,6 +15,9 @@ import * as bcrypt from 'bcrypt';
 import { AuthenticatedUser, JwtPayload } from './types';
 import type { UserEntity } from '../users/users.service';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationsGateway } from '../notifications/notifications.gateway';
+import { NotificationType } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -28,6 +31,8 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly mailer: MailerService,
     private readonly prismaService: PrismaService,
+    private readonly notificationsService: NotificationsService,
+    private readonly notificationsGateway: NotificationsGateway,
   ) {
     this.refreshSecret = process.env.JWT_REFRESH_SECRET ?? 'dev_refresh_secret';
     this.refreshExpires = process.env.JWT_REFRESH_EXPIRES ?? '7d';
@@ -99,6 +104,25 @@ export class AuthService {
     const refreshToken = this.signRefreshToken(dbUser);
     await this.usersService.setRefreshToken(dbUser.id, refreshToken);
 
+    // Send notification to admins and user's department manager about login
+    try {
+      const userName = `${dbUser.firstName} ${dbUser.lastName}`;
+      const notifications = await this.notificationsService.createForAdminsAndUserDepartmentManager(
+        dbUser.id,
+        NotificationType.SYSTEM_ALERT,
+        'User Logged In',
+        `${userName} (${dbUser.email}) has logged into the system.`,
+      );
+      
+      // Send real-time notification via WebSocket
+      for (const notification of notifications) {
+        await this.notificationsGateway.sendToUser(notification.recipientId, notification);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to send login notification: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Don't fail login if notification fails
+    }
+
     return {
       accessToken,
       refreshToken,
@@ -113,6 +137,28 @@ export class AuthService {
 
   async logout(userId: string): Promise<void> {
     await this.usersService.clearRefreshToken(userId);
+    
+    // Send notification to admins and user's department manager about logout
+    try {
+      const user = await this.usersService.findById(userId);
+      if (user) {
+        const userName = `${user.firstName} ${user.lastName}`;
+        const notifications = await this.notificationsService.createForAdminsAndUserDepartmentManager(
+          userId,
+          NotificationType.SYSTEM_ALERT,
+          'User Logged Out',
+          `${userName} (${user.email}) has logged out of the system.`,
+        );
+        
+        // Send real-time notification via WebSocket
+        for (const notification of notifications) {
+          await this.notificationsGateway.sendToUser(notification.recipientId, notification);
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Failed to send logout notification: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Don't fail logout if notification fails
+    }
   }
 
   async refresh(refreshToken: string) {
