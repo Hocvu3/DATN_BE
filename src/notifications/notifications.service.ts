@@ -194,7 +194,9 @@ export class NotificationsService {
     return this.prisma.user.findMany({
       where: {
         role: {
-          name: 'admin',
+          name: {
+            in: ['admin', 'ADMIN', 'Admin'],
+          },
         },
         isActive: true,
       },
@@ -231,7 +233,11 @@ export class NotificationsService {
         const departmentManager = await this.prisma.user.findFirst({
           where: {
             departmentId: creator.departmentId,
-            role: { name: 'manager' },
+            role: { 
+              name: {
+                in: ['manager', 'MANAGER', 'Manager'],
+              },
+            },
             isActive: true,
           },
           select: { id: true },
@@ -296,7 +302,11 @@ export class NotificationsService {
         const departmentManager = await this.prisma.user.findFirst({
           where: {
             departmentId: user.departmentId,
-            role: { name: 'manager' },
+            role: { 
+              name: {
+                in: ['manager', 'MANAGER', 'Manager'],
+              },
+            },
             isActive: true,
           },
           select: { id: true },
@@ -356,7 +366,11 @@ export class NotificationsService {
         const departmentManager = await this.prisma.user.findFirst({
           where: {
             departmentId: departmentId,
-            role: { name: 'manager' },
+            role: { 
+              name: {
+                in: ['manager', 'MANAGER', 'Manager'],
+              },
+            },
             isActive: true,
           },
           select: { id: true },

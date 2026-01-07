@@ -107,6 +107,8 @@ export class AuthService {
     // Send notification to admins and user's department manager about login
     try {
       const userName = `${dbUser.firstName} ${dbUser.lastName}`;
+      this.logger.log(`Creating login notifications for user: ${userName} (${dbUser.id})`);
+      
       const notifications = await this.notificationsService.createForAdminsAndUserDepartmentManager(
         dbUser.id,
         NotificationType.SYSTEM_ALERT,
@@ -114,12 +116,16 @@ export class AuthService {
         `${userName} (${dbUser.email}) has logged into the system.`,
       );
       
+      this.logger.log(`Created ${notifications.length} login notifications`);
+      
       // Send real-time notification via WebSocket
       for (const notification of notifications) {
         await this.notificationsGateway.sendToUser(notification.recipientId, notification);
+        this.logger.log(`Sent login notification to user: ${notification.recipientId}`);
       }
     } catch (error) {
       this.logger.error(`Failed to send login notification: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.error(error instanceof Error ? error.stack : error);
       // Don't fail login if notification fails
     }
 
@@ -136,13 +142,19 @@ export class AuthService {
   }
 
   async logout(userId: string): Promise<void> {
-    await this.usersService.clearRefreshToken(userId);
+    this.logger.log(`[LOGOUT] Method called for userId: ${userId}`);
     
-    // Send notification to admins and user's department manager about logout
+    // Send notification BEFORE clearing token so socket is still connected
     try {
+      this.logger.log(`[LOGOUT] Fetching user by ID: ${userId}`);
       const user = await this.usersService.findById(userId);
+      
+      this.logger.log(`[LOGOUT] User found: ${user ? 'YES' : 'NO'}`);
+      
       if (user) {
         const userName = `${user.firstName} ${user.lastName}`;
+        this.logger.log(`[LOGOUT] Creating logout notifications for user: ${userName} (${userId})`);
+        
         const notifications = await this.notificationsService.createForAdminsAndUserDepartmentManager(
           userId,
           NotificationType.SYSTEM_ALERT,
@@ -150,15 +162,32 @@ export class AuthService {
           `${userName} (${user.email}) has logged out of the system.`,
         );
         
+        this.logger.log(`[LOGOUT] Created ${notifications.length} logout notifications`);
+        
         // Send real-time notification via WebSocket
         for (const notification of notifications) {
+          this.logger.log(`[LOGOUT] Sending notification to recipientId: ${notification.recipientId}`);
           await this.notificationsGateway.sendToUser(notification.recipientId, notification);
+          this.logger.log(`[LOGOUT] Successfully sent notification to user: ${notification.recipientId}`);
         }
+        
+        // Wait a bit to ensure WebSocket messages are sent
+        this.logger.log(`[LOGOUT] Waiting 100ms for WebSocket delivery...`);
+        await new Promise(resolve => setTimeout(resolve, 100));
+        this.logger.log(`[LOGOUT] Wait complete`);
+      } else {
+        this.logger.warn(`[LOGOUT] User not found for userId: ${userId}, skipping notifications`);
       }
     } catch (error) {
-      this.logger.error(`Failed to send logout notification: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.error(`[LOGOUT] Failed to send logout notification: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.error(`[LOGOUT] Error stack:`, error instanceof Error ? error.stack : error);
       // Don't fail logout if notification fails
     }
+    
+    // Now clear the refresh token
+    this.logger.log(`[LOGOUT] Clearing refresh token for userId: ${userId}`);
+    await this.usersService.clearRefreshToken(userId);
+    this.logger.log(`[LOGOUT] Logout complete for userId: ${userId}`);
   }
 
   async refresh(refreshToken: string) {
