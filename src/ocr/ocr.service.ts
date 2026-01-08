@@ -55,17 +55,22 @@ export class OcrService {
       },
     });
 
-    // Bedrock: MUST use us-east-1 for Claude 3.5 Sonnet support
+    // Bedrock: use us-east-1 with retry config for better rate limit handling
     this.bedrockClient = new BedrockRuntimeClient({
       region: 'us-east-1',
       credentials: {
         accessKeyId,
         secretAccessKey,
       },
+      maxAttempts: 50, // Increased retry attempts to handle rate limiting
+      requestHandler: {
+        connectionTimeout: 10000, // 10 seconds
+        requestTimeout: 60000,    // 60 seconds
+      },
     });
     
     this.logger.log(`Textract configured for region: ${region}`);
-    this.logger.log('Bedrock configured for region: us-east-1');
+    this.logger.log('Bedrock configured for region: us-east-1 with 50 max retry attempts');
   }
 
   /**
@@ -331,7 +336,7 @@ Hãy trả lời bằng tiếng Việt, CHI TIẾT, ĐẦY ĐỦ. Không bỏ s�
 
       const requestBody = {
         anthropic_version: 'bedrock-2023-05-31',
-        max_tokens: 2000,
+        max_tokens: 4096, // Increased token limit for better summaries to allow longer summaries
         messages: [
           {
             role: 'user',
@@ -365,7 +370,24 @@ Hãy trả lời bằng tiếng Việt, CHI TIẾT, ĐẦY ĐỦ. Không bỏ s�
       return summary;
     } catch (error) {
       this.logger.error(`Bedrock summarization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      throw new BadRequestException('Failed to generate summary');
+      
+      // Handle specific Bedrock errors with better messages
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      if (errorMessage.includes('Too many tokens') || errorMessage.includes('ThrottlingException')) {
+        throw new BadRequestException(
+          'AI service is currently busy due to high demand. Please try again in a few minutes. ' +
+          'Your document was successfully extracted and can be viewed, but the AI summary is temporarily unavailable.'
+        );
+      }
+      
+      if (errorMessage.includes('ValidationException')) {
+        throw new BadRequestException(
+          'The document text is too large for AI processing. Please try with a shorter document.'
+        );
+      }
+      
+      throw new BadRequestException('Failed to generate AI summary. Your document was extracted successfully, but the AI service encountered an error.');
     }
   }
 
@@ -384,8 +406,26 @@ Hãy trả lời bằng tiếng Việt, CHI TIẾT, ĐẦY ĐỦ. Không bỏ s�
         throw new BadRequestException('Extracted text is too short or empty. Document may be unreadable.');
       }
 
-      // Step 2: Summarize with Bedrock
-      const summary = await this.summarizeText(text);
+      // Step 2: Try to summarize with Bedrock - but don't fail if it errors
+      let summary = '';
+      let summaryError = '';
+      
+      try {
+        summary = await this.summarizeText(text);
+      } catch (error) {
+        // Log the error but continue - we still have the extracted text
+        summaryError = error instanceof Error ? error.message : 'Unknown error';
+        this.logger.warn(`Summary generation failed, but text extraction succeeded: ${summaryError}`);
+        
+        // Provide a default summary indicating the issue
+        if (summaryError.includes('Too many tokens') || summaryError.includes('ThrottlingException')) {
+          summary = '⚠️ AI Summary temporarily unavailable due to high demand. Please try again in a few minutes.\n\n' +
+                   'The document has been successfully extracted and you can read the full text below.';
+        } else {
+          summary = '⚠️ AI Summary could not be generated at this time.\n\n' +
+                   'The document has been successfully extracted and you can read the full text below.';
+        }
+      }
 
       const totalProcessingTime = Date.now() - startTime;
 

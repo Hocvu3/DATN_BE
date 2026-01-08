@@ -227,34 +227,41 @@ export class OcrController {
     @Body() dto: AnalyzeDocumentDto,
   ) {
     try {
-      // Get document and its latest version
+      // Get document
       const document = await this.prisma.document.findUnique({
         where: { id: dto.documentId },
-        include: {
-          versions: {
-            orderBy: {
-              versionNumber: 'desc',
-            },
-            take: 1,
-          },
-        },
       });
 
       if (!document) {
         throw new BadRequestException('Document not found');
       }
 
-      const latestVersion = document.versions[0];
-      if (!latestVersion) {
+      // Get specific version or latest version
+      let targetVersion;
+      if (dto.versionId) {
+        targetVersion = await this.prisma.documentVersion.findUnique({
+          where: { id: dto.versionId },
+        });
+        if (!targetVersion || targetVersion.documentId !== dto.documentId) {
+          throw new BadRequestException('Version not found or does not belong to this document');
+        }
+      } else {
+        targetVersion = await this.prisma.documentVersion.findFirst({
+          where: { documentId: dto.documentId },
+          orderBy: { versionNumber: 'desc' },
+        });
+      }
+
+      if (!targetVersion) {
         throw new BadRequestException('Document has no versions');
       }
 
       // Use s3Key if available, otherwise try to extract from s3Url
-      let s3Key = latestVersion.s3Key;
+      let s3Key = targetVersion.s3Key;
       
-      if (!s3Key && latestVersion.s3Url) {
+      if (!s3Key && targetVersion.s3Url) {
         // Fallback: try to extract from s3Url
-        const s3Url = latestVersion.s3Url;
+        const s3Url = targetVersion.s3Url;
         s3Key = s3Url.includes('amazonaws.com/') 
           ? s3Url.split('amazonaws.com/')[1].split('?')[0] // Remove query params
           : s3Url;
@@ -262,6 +269,17 @@ export class OcrController {
 
       if (!s3Key) {
         throw new BadRequestException('Document has no S3 key or URL');
+      }
+
+      // Validate file format before analysis
+      const fileExtension = s3Key.split('.').pop()?.toLowerCase();
+      const supportedFormats = ['pdf', 'png', 'jpg', 'jpeg', 'tiff', 'tif'];
+      
+      if (!fileExtension || !supportedFormats.includes(fileExtension)) {
+        throw new BadRequestException(
+          `Cannot analyze ${fileExtension || 'unknown'} files. AI OCR only supports: ${supportedFormats.join(', ')}. ` +
+          `Please convert your document to PDF or image format before analyzing.`
+        );
       }
 
       this.logger.log(`Analyzing document ${dto.documentId} with S3 key: ${s3Key}`);
@@ -321,7 +339,7 @@ export class OcrController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Approve document after AI analysis (Admin/Manager only)',
-    description: 'Approve document and optionally apply digital signature with stamp',
+    description: 'Approve document and optionally apply digital signature with watermark',
   })
   @ApiParam({ name: 'documentId', description: 'Document ID', type: 'string' })
   @ApiOkResponse({ description: 'Document approved successfully' })
@@ -330,34 +348,41 @@ export class OcrController {
   async approveDocument(
     @Req() req: { user: { userId: string; role: string } },
     @Param('documentId') documentId: string,
-    @Body() body: { signatureStampId?: string; reason?: string; type?: number },
+    @Body() body: { versionId?: string; signatureStampId?: string; reason?: string; type?: number },
   ) {
     try {
-      // Get document and its latest version
+      // Get document
       const document = await this.prisma.document.findUnique({
         where: { id: documentId },
-        include: {
-          versions: {
-            orderBy: {
-              versionNumber: 'desc',
-            },
-            take: 1,
-          },
-        },
       });
 
       if (!document) {
         throw new BadRequestException('Document not found');
       }
 
-      const latestVersion = document.versions[0];
-      if (!latestVersion) {
+      // Get specific version or latest version
+      let targetVersion;
+      if (body.versionId) {
+        targetVersion = await this.prisma.documentVersion.findUnique({
+          where: { id: body.versionId },
+        });
+        if (!targetVersion || targetVersion.documentId !== documentId) {
+          throw new BadRequestException('Version not found or does not belong to this document');
+        }
+      } else {
+        targetVersion = await this.prisma.documentVersion.findFirst({
+          where: { documentId: documentId },
+          orderBy: { versionNumber: 'desc' },
+        });
+      }
+
+      if (!targetVersion) {
         throw new BadRequestException('Document has no versions');
       }
 
       let result: any;
 
-      // If signatureStampId is provided, apply stamp and create/update signature request
+      // If signatureStampId is provided, apply watermark and create/update signature request
       if (body.signatureStampId) {
         result = await this.signatureStampsService.applySignatureStamp(
           {
@@ -372,18 +397,18 @@ export class OcrController {
 
         return {
           success: true,
-          message: 'Document approved with signature stamp',
+          message: 'Document approved with signature watermark',
           data: {
             documentId,
-            versionId: latestVersion.id,
+            versionId: targetVersion.id,
             digitalSignature: result,
           },
         };
       } else {
-        // Just approve without stamp - find or create signature request
+        // Just approve without watermark - find or create signature request
         let signatureRequest = await this.prisma.signatureRequest.findFirst({
           where: {
-            documentVersionId: latestVersion.id,
+            documentVersionId: targetVersion.id,
           },
         });
 
@@ -403,7 +428,7 @@ export class OcrController {
           
           signatureRequest = await this.prisma.signatureRequest.create({
             data: {
-              documentVersion: { connect: { id: latestVersion.id } },
+              documentVersion: { connect: { id: targetVersion.id } },
               requester: { connect: { id: req.user.userId } },
               signatureType: 'DIGITAL',
               expiresAt: expiresAt,
@@ -416,7 +441,7 @@ export class OcrController {
 
         // Update version status to APPROVED
         await this.prisma.documentVersion.update({
-          where: { id: latestVersion.id },
+          where: { id: targetVersion.id },
           data: { status: 'APPROVED' },
         });
 
@@ -425,7 +450,7 @@ export class OcrController {
           message: 'Document approved successfully',
           data: {
             documentId,
-            versionId: latestVersion.id,
+            versionId: targetVersion.id,
             signatureRequest,
           },
         };
@@ -450,35 +475,42 @@ export class OcrController {
   async rejectDocument(
     @Req() req: { user: { userId: string; role: string } },
     @Param('documentId') documentId: string,
-    @Body() body: { reason: string },
+    @Body() body: { versionId?: string; reason: string },
   ) {
     try {
-      // Get document and its latest version
+      // Get document
       const document = await this.prisma.document.findUnique({
         where: { id: documentId },
-        include: {
-          versions: {
-            orderBy: {
-              versionNumber: 'desc',
-            },
-            take: 1,
-          },
-        },
       });
 
       if (!document) {
         throw new BadRequestException('Document not found');
       }
 
-      const latestVersion = document.versions[0];
-      if (!latestVersion) {
+      // Get specific version or latest version
+      let targetVersion;
+      if (body.versionId) {
+        targetVersion = await this.prisma.documentVersion.findUnique({
+          where: { id: body.versionId },
+        });
+        if (!targetVersion || targetVersion.documentId !== documentId) {
+          throw new BadRequestException('Version not found or does not belong to this document');
+        }
+      } else {
+        targetVersion = await this.prisma.documentVersion.findFirst({
+          where: { documentId: documentId },
+          orderBy: { versionNumber: 'desc' },
+        });
+      }
+
+      if (!targetVersion) {
         throw new BadRequestException('Document has no versions');
       }
 
       // Find signature request for this version
       const signatureRequest = await this.prisma.signatureRequest.findFirst({
         where: {
-          documentVersionId: latestVersion.id,
+          documentVersionId: targetVersion.id,
         },
       });
 
@@ -493,7 +525,7 @@ export class OcrController {
       } else {
         // No signature request exists, just update version status to PENDING_APPROVAL
         await this.prisma.documentVersion.update({
-          where: { id: latestVersion.id },
+          where: { id: targetVersion.id },
           data: { status: DocumentStatus.PENDING_APPROVAL },
         });
       }
@@ -503,7 +535,7 @@ export class OcrController {
         message: 'Document rejected successfully',
         data: {
           documentId,
-          versionId: latestVersion.id,
+          versionId: targetVersion.id,
         },
       };
     } catch (error) {

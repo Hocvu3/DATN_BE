@@ -11,6 +11,15 @@ export class ApplySignatureDto {
   documentId!: string;
 
   @ApiProperty({
+    description: 'Document version ID to apply signature to',
+    example: 'clxyz123456789',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  documentVersionId?: string;
+
+  @ApiProperty({
     description: 'Signature stamp ID to apply',
     example: 'clxyz987654321',
   })

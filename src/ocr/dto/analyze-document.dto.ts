@@ -8,6 +8,14 @@ export class AnalyzeDocumentDto {
   })
   @IsString()
   documentId!: string;
+
+  @ApiPropertyOptional({ 
+    description: 'Specific version ID to analyze (if not provided, uses latest version)',
+    example: 'cm123abc456ver'
+  })
+  @IsString()
+  @IsOptional()
+  versionId?: string;
 }
 
 export class GetDocumentsForOcrDto {

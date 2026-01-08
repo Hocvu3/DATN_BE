@@ -125,13 +125,7 @@ export class SignatureRepository {
           },
           documentVersion: {
             include: {
-              document: {
-                select: {
-                  id: true,
-                  title: true,
-                  documentNumber: true,
-                },
-              },
+              document: true,
             },
           },
         },
@@ -142,12 +136,14 @@ export class SignatureRepository {
       this.prisma.signatureRequest.count({ where }),
     ]);
 
-    // Transform to include version details
-    const requestsWithDetails: SignatureRequestWithDetails[] = requests.map(request => ({
-      ...request,
-    }));
+    // Filter out requests with null/deleted documents and transform
+    const requestsWithDetails: SignatureRequestWithDetails[] = requests
+      .filter(request => request.documentVersion?.document != null)
+      .map(request => ({
+        ...request,
+      }));
 
-    return { requests: requestsWithDetails, total };
+    return { requests: requestsWithDetails, total: requestsWithDetails.length };
   }
 
   async updateSignatureRequest(

@@ -186,8 +186,17 @@ export class SignatureStampsService {
 
     // Download stamp image from S3
     this.logger.log(`[applySignatureStamp] Downloading stamp image from S3...`);
-    const stampImageBuffer = await this.s3Service.getFileBuffer(signatureStamp.s3Key);
-    this.logger.log(`[applySignatureStamp] Downloaded stamp image, size: ${stampImageBuffer.length} bytes`);
+    let stampImageBuffer: Buffer;
+    try {
+      stampImageBuffer = await this.s3Service.getFileBuffer(signatureStamp.s3Key);
+      this.logger.log(`[applySignatureStamp] Downloaded stamp image, size: ${stampImageBuffer.length} bytes`);
+    } catch (error) {
+      this.logger.error(`[applySignatureStamp] Failed to download stamp image from S3. Key: ${signatureStamp.s3Key}`, error);
+      throw new BadRequestException(
+        `Stamp image file not found in storage (S3 key: ${signatureStamp.s3Key}). ` +
+        `The watermark may have been created incorrectly. Please delete and recreate this watermark.`
+      );
+    }
 
     // Process PDF: Insert stamp image
     this.logger.log(`[applySignatureStamp] Processing PDF to insert stamp...`);
