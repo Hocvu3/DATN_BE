@@ -251,7 +251,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         await tx.$executeRawUnsafe(`SET LOCAL app.current_user_role = '${role.replace(/'/g, "''")}'`);
       }
       if (departmentId) {
-        await tx.$executeRawUnsafe(`SET LOCAL app.current_user_department = '${departmentId.replace(/'/g, "''")}'`);
+        await tx.$executeRawUnsafe(`SET LOCAL app.current_user_department_id = '${departmentId.replace(/'/g, "''")}'`);
       }
       return fn(tx);
     });
