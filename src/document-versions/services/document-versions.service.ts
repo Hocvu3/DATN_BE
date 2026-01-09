@@ -195,6 +195,17 @@ export class DocumentVersionsService {
       throw new NotFoundException(`Document with ID '${documentId}' not found`);
     }
 
+    // Get user role
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { role: true },
+    });
+
+    // Check permissions: only ADMIN and document creator can upload versions
+    if (user?.role?.name !== 'ADMIN' && document.creatorId !== userId) {
+      throw new BadRequestException('You can only upload versions to your own documents');
+    }
+
     // Get next version number
     const latestVersion = document.versions[0];
     const nextVersionNumber = latestVersion ? latestVersion.versionNumber + 1 : 1;
@@ -325,7 +336,7 @@ export class DocumentVersionsService {
   /**
    * Delete version
    */
-  async deleteVersion(documentId: string, versionId: string) {
+  async deleteVersion(documentId: string, versionId: string, userId?: string) {
     // Verify version exists and belongs to document
     const version = await this.prisma.documentVersion.findFirst({
       where: {
@@ -344,6 +355,18 @@ export class DocumentVersionsService {
 
     if (!version) {
       throw new NotFoundException(`Version with ID '${versionId}' not found`);
+    }
+
+    // Check permissions: only ADMIN and document creator can delete versions
+    if (userId) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: { role: true },
+      });
+
+      if (user?.role?.name !== 'ADMIN' && version.document.creatorId !== userId) {
+        throw new BadRequestException('You can only delete versions of your own documents');
+      }
     }
 
     // Don't allow deleting if it's the only version

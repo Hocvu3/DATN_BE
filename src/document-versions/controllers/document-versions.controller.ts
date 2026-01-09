@@ -74,7 +74,7 @@ export class DocumentVersionsController {
    * Create new version
    */
   @Post()
-  @Roles('ADMIN', 'MANAGER')
+  @Roles('ADMIN', 'MANAGER', 'EMPLOYEE')
   async createVersion(
     @Param('documentId') documentId: string,
     @Body() createVersionDto: CreateVersionDto,
@@ -158,13 +158,14 @@ export class DocumentVersionsController {
    * Delete version
    */
   @Delete(':versionId')
-  @Roles('ADMIN', 'MANAGER')
+  @Roles('ADMIN', 'MANAGER', 'EMPLOYEE')
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteVersion(
     @Param('documentId') documentId: string,
     @Param('versionId') versionId: string,
+    @Req() req: any,
   ) {
-    return this.documentVersionsService.deleteVersion(documentId, versionId);
+    return this.documentVersionsService.deleteVersion(documentId, versionId, req.user.userId);
   }
 
   /**

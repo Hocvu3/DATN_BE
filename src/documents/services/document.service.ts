@@ -600,13 +600,6 @@ export class DocumentService {
       return; // Admin can update all documents
     }
 
-    if (userRole === 'MANAGER') {
-      const user = await this.documentRepository.findUserById(userId);
-      if (user?.departmentId && document.departmentId === user.departmentId) {
-        return; // Manager can update documents in their department
-      }
-    }
-
     if (document.creatorId === userId) {
       return; // Creator can update their own documents
     }
@@ -619,13 +612,15 @@ export class DocumentService {
     userId: string,
     userRole: string,
   ) {
-    // if (userRole !== 'ADMIN') {
-    //   throw new ForbiddenException('Only administrators can delete documents');
-    // }
-
-    if (document.creatorId !== userId) {
-      throw new ForbiddenException('You cannot delete a document you did not create');
+    if (userRole === 'ADMIN') {
+      return; // Admin can delete all documents
     }
+
+    if (document.creatorId === userId) {
+      return; // Creator can delete their own documents
+    }
+
+    throw new ForbiddenException('You do not have permission to delete this document');
   }
 
   // ===== DOCUMENT ASSETS =====
