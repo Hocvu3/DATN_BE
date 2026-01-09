@@ -144,13 +144,14 @@ export class DocumentVersionsController {
    * Update version status
    */
   @Put(':versionId/status')
-  @Roles('ADMIN', 'MANAGER')
+  @Roles('ADMIN', 'MANAGER', 'EMPLOYEE')
   async updateVersionStatus(
     @Param('documentId') documentId: string,
     @Param('versionId') versionId: string,
     @Body('status') status: DocumentStatus,
+    @Req() req: any,
   ) {
-    return this.documentVersionsService.updateVersionStatus(documentId, versionId, status);
+    return this.documentVersionsService.updateVersionStatus(documentId, versionId, status, req.user.userId);
   }
 
   /**

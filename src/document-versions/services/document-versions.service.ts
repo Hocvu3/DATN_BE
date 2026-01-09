@@ -293,6 +293,7 @@ export class DocumentVersionsService {
     documentId: string,
     versionId: string,
     status: DocumentStatus,
+    userId?: string,
   ) {
     // Verify version exists
     const version = await this.prisma.documentVersion.findFirst({
@@ -300,10 +301,18 @@ export class DocumentVersionsService {
         id: versionId,
         documentId: documentId,
       },
+      include: {
+        document: true,
+      },
     });
 
     if (!version) {
       throw new NotFoundException(`Version with ID '${versionId}' not found`);
+    }
+
+    // If userId is provided (employee), check ownership
+    if (userId && version.document.creatorId !== userId) {
+      throw new BadRequestException('You can only update status of your own document versions');
     }
 
     // Update status
