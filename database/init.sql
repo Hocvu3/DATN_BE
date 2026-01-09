@@ -112,17 +112,10 @@ CREATE POLICY "documents_select_policy" ON documents
     get_current_user_role() = 'ADMIN' OR
     -- Creator can always see their own documents
     creator_id = get_current_user_id() OR
-    -- Manager can see department documents based on security level
+    -- Manager can see all documents in their department (any security level)
     (
       get_current_user_role() = 'MANAGER' AND 
-      department_id = get_current_user_department_id() AND
-      security_level IN ('INTERNAL', 'CONFIDENTIAL')
-    ) OR
-    -- Employee can see INTERNAL documents in their department
-    (
-      get_current_user_role() = 'EMPLOYEE' AND 
-      department_id = get_current_user_department_id() AND
-      security_level = 'INTERNAL'
+      department_id = get_current_user_department_id()
     )
   );
 
