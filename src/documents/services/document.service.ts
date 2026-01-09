@@ -11,6 +11,7 @@ import {
 import { DocumentRepository } from '../repositories/document.repository';
 import { S3Service } from '../../s3/s3.service';
 import { SignatureService } from '../../signatures/services/signature.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import type {
   DocumentEntity,
   DocumentVersionEntity,
@@ -31,6 +32,7 @@ export class DocumentService {
   constructor(
     private readonly documentRepository: DocumentRepository,
     private readonly s3Service: S3Service,
+    private readonly prisma: PrismaService,
     @Inject(forwardRef(() => SignatureService))
     private readonly signatureService: SignatureService,
   ) { }
@@ -123,138 +125,126 @@ export class DocumentService {
     limit: number;
     totalPages: number;
   }> {
-    const page = Number(query.page) || 1;
-    const limit = Number(query.limit) || 10;
-    const skip = (page - 1) * limit;
+    // Get user department ID for RLS context
+    const user = await this.documentRepository.findUserById(userId);
+    const departmentId = user?.departmentId || null;
 
-    // Build where clause based on user role
-    let where: any = {};
+    // Wrap query in RLS context
+    return this.prisma.runWithUserContext(
+      { userId, role: userRole, departmentId },
+      async (tx) => {
+        const page = Number(query.page) || 1;
+        const limit = Number(query.limit) || 10;
+        const skip = (page - 1) * limit;
 
-    // Apply role-based filtering
-    if (userRole === 'EMPLOYEE') {
-      // Employees can only see documents they created or are assigned to
-      where = {
-        OR: [{ creatorId: userId }, { approverId: userId }],
-      };
-    } else if (userRole === 'MANAGER') {
-      // Managers can see documents in their department
-      const user = await this.documentRepository.findUserById(userId);
-      if (user?.departmentId) {
-        where = {
-          OR: [{ creatorId: userId }, { departmentId: user.departmentId }],
+        // Build where clause - RLS will handle role-based filtering
+        let where: any = {};
+
+        // Apply search filters
+        const searchParams = {
+          search: query.search,
+          status: query.status,
+          securityLevel: query.securityLevel,
+          isConfidential: query.isConfidential,
+          departmentId: query.departmentId,
+          creatorId: query.creatorId,
+          tag: query.tag,
+          createdFrom: query.createdFrom ? new Date(query.createdFrom) : undefined,
+          createdTo: query.createdTo ? new Date(query.createdTo) : undefined,
         };
-      } else {
-        where = { creatorId: userId };
-      }
-    }
-    // ADMIN can see all documents (no additional filtering)
 
-    // Apply search filters
-    const searchParams = {
-      search: query.search,
-      status: query.status,
-      securityLevel: query.securityLevel,
-      isConfidential: query.isConfidential,
-      departmentId: query.departmentId,
-      creatorId: query.creatorId,
-      tag: query.tag,
-      createdFrom: query.createdFrom ? new Date(query.createdFrom) : undefined,
-      createdTo: query.createdTo ? new Date(query.createdTo) : undefined,
-    };
+        // Build where clause for count (including search logic)
+        const countWhere: any = { ...where };
 
-    // Build where clause for count (including search logic)
-    const countWhere: any = { ...where };
+        // Apply search filters to count where clause
+        if (query.search) {
+          countWhere.OR = [
+            { title: { contains: query.search, mode: 'insensitive' } },
+            { description: { contains: query.search, mode: 'insensitive' } },
+            { documentNumber: { contains: query.search, mode: 'insensitive' } },
+          ];
+        }
 
-    // Apply search filters to count where clause
-    if (query.search) {
-      // If there's already an OR clause from role-based filtering, we need to combine them
-      if (countWhere.OR) {
-        countWhere.AND = [
-          { OR: countWhere.OR }, // existing role-based OR
-          {
-            OR: [
-              // search OR
-              { title: { contains: query.search, mode: 'insensitive' } },
-              { description: { contains: query.search, mode: 'insensitive' } },
-              { documentNumber: { contains: query.search, mode: 'insensitive' } },
-            ],
-          },
-        ];
-        delete countWhere.OR; // remove the original OR since it's now in AND
-      } else {
-        countWhere.OR = [
-          { title: { contains: query.search, mode: 'insensitive' } },
-          { description: { contains: query.search, mode: 'insensitive' } },
-          { documentNumber: { contains: query.search, mode: 'insensitive' } },
-        ];
-      }
-    }
+        // Apply other filters to count where clause
+        if (query.status) {
+          countWhere.status = query.status;
+        }
+        if (query.securityLevel) {
+          countWhere.securityLevel = query.securityLevel;
+        }
+        if (query.isConfidential !== undefined) {
+          countWhere.isConfidential = query.isConfidential;
+        }
+        if (query.departmentId) {
+          this.logger.debug(`Filtering by departmentId: ${query.departmentId}`);
+          countWhere.departmentId = query.departmentId;
+        }
+        if (query.creatorId) {
+          countWhere.creatorId = query.creatorId;
+        }
+        if (query.tag) {
+          countWhere.tags = {
+            some: {
+              tag: {
+                name: { contains: query.tag, mode: 'insensitive' },
+              },
+            },
+          };
+        }
+        if (query.createdFrom || query.createdTo) {
+          countWhere.createdAt = {};
+          if (query.createdFrom) {
+            countWhere.createdAt.gte = new Date(query.createdFrom);
+          }
+          if (query.createdTo) {
+            countWhere.createdAt.lte = new Date(query.createdTo);
+          }
+        }
 
-    // Apply other filters to count where clause
-    if (query.status) {
-      countWhere.status = query.status;
-    }
-    if (query.securityLevel) {
-      countWhere.securityLevel = query.securityLevel;
-    }
-    if (query.isConfidential !== undefined) {
-      countWhere.isConfidential = query.isConfidential;
-    }
-    if (query.departmentId) {
-      this.logger.debug(`Filtering by departmentId: ${query.departmentId}`);
-      countWhere.departmentId = query.departmentId;
-    }
-    if (query.creatorId) {
-      countWhere.creatorId = query.creatorId;
-    }
-    if (query.tag) {
-      countWhere.tags = {
-        some: {
-          tag: {
-            name: { contains: query.tag, mode: 'insensitive' },
-          },
-        },
-      };
-    }
-    if (query.createdFrom || query.createdTo) {
-      countWhere.createdAt = {};
-      if (query.createdFrom) {
-        countWhere.createdAt.gte = new Date(query.createdFrom);
-      }
-      if (query.createdTo) {
-        countWhere.createdAt.lte = new Date(query.createdTo);
-      }
-    }
+        const [documents, total] = await Promise.all([
+          tx.document.findMany({
+            where: countWhere,
+            skip,
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+            include: {
+              creator: true,
+              approver: true,
+              department: true,
+              versions: true,
+              assets: true,
+              tags: { include: { tag: true } },
+              comments: {
+                include: {
+                  author: { select: { id: true, email: true, firstName: true, lastName: true } },
+                },
+              },
+            },
+          }),
+          tx.document.count({ where: countWhere }),
+        ]);
 
-    const [documents, total] = await Promise.all([
-      this.documentRepository.findMany({
-        where: countWhere,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.documentRepository.count(countWhere),
-    ]);
+        const documentsWithCovers = await Promise.all(
+          documents.map(async (doc) => {
+            const cover = await this.getDocumentCover(doc.id);
+            return {
+              ...doc,
+              cover,
+            };
+          })
+        );
 
-    const documentsWithCovers = await Promise.all(
-      documents.map(async (doc) => {
-        const cover = await this.getDocumentCover(doc.id);
+        const totalPages = Math.ceil(total / limit);
+
         return {
-          ...doc,
-          cover,
+          documents: documentsWithCovers as DocumentEntity[],
+          total,
+          page,
+          limit,
+          totalPages,
         };
-      })
+      }
     );
-
-    const totalPages = Math.ceil(total / limit);
-
-    return {
-      documents: documentsWithCovers,
-      total,
-      page,
-      limit,
-      totalPages,
-    };
   }
 
   async getDocumentById(id: string, userId: string, userRole: string): Promise<DocumentEntity> {
