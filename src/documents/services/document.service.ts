@@ -219,6 +219,7 @@ export class DocumentService {
                   author: { select: { id: true, email: true, firstName: true, lastName: true } },
                 },
               },
+              auditLogs: true,
             },
           }),
           tx.document.count({ where: countWhere }),
